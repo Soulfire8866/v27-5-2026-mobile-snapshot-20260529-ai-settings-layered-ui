@@ -1,0 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap');
+@import "tailwindcss";
+
+/* Dark mode theo hệ thống (class .dark trên html — xem useSystemColorScheme) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Kindle-inspired app chrome */
+  --color-app-bg: #f4f1ea;
+  --color-app-surface: #ffffff;
+  --color-app-surface-muted: #ebe8e1;
+  --color-app-text: #1c1c1c;
+  --color-app-text-muted: #5a5a5a;
+  --color-app-border: #d1cdc4;
+  --color-app-accent: #0f6e6e;
+  --color-app-accent-hover: #0a5555;
+}
+
+.dark {
+  --color-app-bg: #121212;
+  --color-app-surface: #1c1c1c;
+  --color-app-surface-muted: #262626;
+  --color-app-text: #e8e6e3;
+  --color-app-text-muted: #a3a3a3;
+  --color-app-border: #3a3a3a;
+  --color-app-accent: #5eb8b8;
+  --color-app-accent-hover: #7ecece;
+}
+
+@layer utilities {
+  .bg-app-bg { background-color: var(--color-app-bg); }
+  .bg-app-surface { background-color: var(--color-app-surface); }
+  .bg-app-surface-muted { background-color: var(--color-app-surface-muted); }
+  .text-app-text { color: var(--color-app-text); }
+  .text-app-text-muted { color: var(--color-app-text-muted); }
+  .border-app-border { border-color: var(--color-app-border); }
+  .bg-app-accent { background-color: var(--color-app-accent); }
+  .bg-app-accent-hover:hover { background-color: var(--color-app-accent-hover); }
+  .border-app-accent { border-color: var(--color-app-accent); }
+  .text-app-accent { color: var(--color-app-accent); }
+  .ring-app-accent { --tw-ring-color: color-mix(in srgb, var(--color-app-accent) 35%, transparent); }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-app-bg);
+    color: var(--color-app-text);
+  }
+}
+
+/* Custom gorgeous scrollbar styled to match Windows 11 Fluent style */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(125, 125, 125, 0.2);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(125, 125, 125, 0.45);
+}
+
+/* Animations transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-scale-up {
+  animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Phòng Đọc mobile — safe chrome (B-Reader) */
+#reader-view-panel[data-reader-overlay="true"] {
+  --reader-safe-top: max(env(safe-area-inset-top, 0px), 28px);
+  --reader-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Lab Dịch — chrome dưới status bar (B-Lab 1B) */
+.lab-chrome-safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 28px);
+}
+
+/* Header Lab mở chương: cùng safe-top với chrome Lab (1A — thẳng hàng Từ điển/Cấu hình). */
+#lab-chapter-header.lab-chrome-safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 28px);
+}
+
+/* Limit native callout menu but keep text selection */
+.no-callout {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Serif font style for clean book reading experience */
+.serif-reading-font {
+  font-family: 'Literata', Georgia, 'Times New Roman', serif;
+}
+
+/* Acrylic-mica background simulation */
+.acrylic-card {
+  backdrop-filter: blur(20px);
+  background-color: rgba(255, 255, 255, 0.72);
+}
+.dark .acrylic-card {
+  backdrop-filter: blur(20px);
+  background-color: rgba(24, 24, 27, 0.75);
+}
+
+/* Smooth active highlight indicating border for aligned rows */
+.aligned-row-editing {
+  border: 1.5px solid var(--color-app-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-app-accent) 18%, transparent);
+}

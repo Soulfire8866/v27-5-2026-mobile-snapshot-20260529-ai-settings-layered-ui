@@ -1,0 +1,37 @@
+---
+description: Lab Dịch, quét tên, Phòng Đọc, APK Android — vùng rủi ro cao / đang hoàn thiện
+globs: src/App.tsx,src/components/CompareView.tsx,src/components/DictManager.tsx,src/components/ReaderView.tsx,src/utils/nameScanPipeline.ts,src/utils/hanVietOffline.ts,src/index.css,src/utils/systemChrome.ts,android/**/*
+alwaysApply: false
+---
+
+# Vùng cần đọc guide + checklist
+
+Đọc **`docs/AI_AGENT_PROJECT_GUIDE.md`** (mục 5–7, 8, 9). Tóm tắt bắt buộc:
+
+## Lab Dịch (`App.tsx`, `CompareView.tsx`, `index.css`)
+
+- Tiêu đề header: **「Lab Dịch」**, không 「Biên dịch song song」.
+- Header **2 hàng**: tiêu đề chương trên, nút (Home, List, Phòng Đọc, Dịch) dưới.
+- **`#lab-chapter-header.lab-chrome-safe-top`**: `padding-top: max(env(safe-area-inset-top, 0px), 28px)` — **cấm `!pt-0`**; không cộng thêm `2.75rem`.
+- **Home** → `setActiveTab("home")`, không `history.back()` (tránh mở drawer chương).
+
+## Quét tên (`DictManager.tsx`, `nameScanPipeline.ts`)
+
+- Hai checkbox: **`useRefDictForLookup`** (PA-3) tách **`excludeRefWords`** (blacklist quét).
+- Sau upload `.txt`: PA-3 **bật**, exclude **tắt**. Chỉ hỗ trợ **`.txt`**.
+- Điền tên: **VP → Lab** (`isLabMatchPlausible`) **→ HV** — ba badge khác nhau.
+- **Không** khôi phục CVDICT. Không bật `excludeRefWords=true` mặc định.
+
+## Phòng Đọc (`ReaderView.tsx`, `hanVietOffline.ts`)
+
+- Chỉ hiển thị bản dịch Lab; HV qua `hanVietOffline.ts` (vd. `楚` → Sở).
+- Smoke test popup tra từ sau khi sửa HV.
+
+## APK Android
+
+- Kiểm tra safe-area trên máy thật sau đổi header Lab.
+- Build: `npm run lint` → `npm run build` → `npx cap sync android`.
+
+## UI
+
+- Class Tailwind hợp lệ (`text-sky-600`, `z-[55]`). `option value="history"` không có typo.

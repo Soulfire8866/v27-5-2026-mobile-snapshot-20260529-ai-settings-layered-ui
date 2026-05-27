@@ -1,0 +1,32 @@
+---
+description: Handoff dự án Novel Translator (repo v27.5.2026 mobile) — đọc trước khi sửa code
+alwaysApply: true
+---
+
+# Repo v27.5.2026 mobile
+
+Khi **sửa, nâng cấp hoặc debug** repo này:
+
+1. Đọc **`docs/AI_AGENT_PROJECT_GUIDE.md`** trước khi thay đổi code; tuân thủ quyết định đã chốt trong đó.
+2. Repo hiện tại: **`v27.5.2026 mobile`** (kế thừa `mobile_v3`). Không giả định đường dẫn `v24.5.2026 mobile_v3`.
+3. **Diff tối thiểu**; dùng `src/lib/ui.ts` và token `app-*`; không commit/push trừ khi user yêu cầu.
+4. UI tiếng Việt; giải thích cho user bằng tiếng Việt.
+
+## Quy trình khi user nêu vấn đề / đề xuất tính năng
+
+Áp dụng khi user mô tả **vấn đề đang gặp**, **ý tưởng cải tiến**, hoặc **yêu cầu thay đổi hành vi** — trừ khi user đã **xác nhận rõ** phương án hoặc ra lệnh triển khai trực tiếp (vd. 「Làm đợt 1」, 「sửa luôn」, 「triển khai 1D+2B」).
+
+**Bắt buộc trước khi sửa code:**
+
+1. **Phân tích & đánh giá** — tính khả thi, hợp lý, rủi ro, phù hợp kiến trúc repo (`docs/AI_AGENT_PROJECT_GUIDE.md`, code liên quan).
+2. **Tối ưu** — nêu phương án tốt hơn (nếu có), so sánh ngắn gọn với ý user.
+3. **Trình bày theo từng vấn đề** — mỗi vấn đề có các lựa chọn mã **1A, 2B, 3C, …** và **khuyến nghị** rõ (vd. «Khuyến nghị: 1D + 2B»).
+4. **Chờ xác nhận** — **không** tự ý sửa code, commit, hay refactor cho đến khi user chọn/chốt phương án (hoặc gói phương án).
+
+**Ngoại lệ (được sửa code ngay):**
+
+- User đã xác nhận phương án trong cùng luồng chat hoặc tin nhắn hiện tại.
+- User chỉ hỏi giải thích / đọc code / review — không yêu cầu thay đổi.
+- User yêu cầu rõ «sửa ngay», «implement», «làm đợt X» sau khi đã chốt trước đó.
+
+Chi tiết kiến trúc, Lab, quét tên PA-3, Phòng Đọc, build APK: xem guide — không copy nguyên guide vào rule này.

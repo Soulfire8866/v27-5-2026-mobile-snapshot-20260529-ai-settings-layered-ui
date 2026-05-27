@@ -1,0 +1,6 @@
+{
+  "name": "Bộ chuyển ngữ Truyện Trung-Việt AI",
+  "description": "Phần mềm dịch thuật, so sánh đối chiếu và đọc truyện Trung - Việt sử dụng trí tuệ nhân tạo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
