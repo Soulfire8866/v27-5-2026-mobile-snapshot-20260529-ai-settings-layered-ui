@@ -19,17 +19,29 @@ export type ReaderThemeTokens = {
   lightBarIcons: boolean;
 };
 
+const VALID_READER_THEMES = [
+  "light",
+  "dark",
+  "cream",
+  "pure-white",
+  "contrast-black",
+] as const satisfies readonly TranslationSettings["theme"][];
+
+const LEGACY_READER_THEME: Record<string, TranslationSettings["theme"]> = {
+  fluent: "light",
+};
+
 const TOKENS: Record<TranslationSettings["theme"], ReaderThemeTokens> = {
   light: {
-    surfaceBg: "bg-white",
-    surfaceHex: "#ffffff",
-    chromeBarBg: "bg-white/92",
-    borderClass: "border-zinc-200/80",
-    borderHex: "#e4e4e7",
+    surfaceBg: "bg-[#f4f8ff]",
+    surfaceHex: "#f4f8ff",
+    chromeBarBg: "bg-[#f4f8ff]/92",
+    borderClass: "border-sky-200/80",
+    borderHex: "#bae6fd",
     textClass: "text-zinc-900",
     mutedTextClass: "text-zinc-600",
-    btnSurfaceClass: "border-zinc-200/80 bg-white/80 hover:bg-zinc-100",
-    settingsPanelClass: "bg-white/96 text-zinc-900 border-zinc-200",
+    btnSurfaceClass: "border-sky-200/80 bg-[#f4f8ff]/80 hover:bg-sky-50",
+    settingsPanelClass: "bg-[#f4f8ff]/96 text-zinc-900 border-sky-200",
     lightBarIcons: true,
   },
   dark: {
@@ -82,8 +94,17 @@ const TOKENS: Record<TranslationSettings["theme"], ReaderThemeTokens> = {
   },
 };
 
+export function normalizeReaderTheme(raw: unknown): TranslationSettings["theme"] {
+  if (typeof raw !== "string") return "light";
+  const mapped = LEGACY_READER_THEME[raw] ?? raw;
+  if ((VALID_READER_THEMES as readonly string[]).includes(mapped)) {
+    return mapped as TranslationSettings["theme"];
+  }
+  return "light";
+}
+
 export function getReaderThemeTokens(theme: TranslationSettings["theme"]): ReaderThemeTokens {
-  return TOKENS[theme] ?? TOKENS.dark;
+  return TOKENS[normalizeReaderTheme(theme)] ?? TOKENS.light;
 }
 
 /** Vị trí top (px) của panel «Cấu hình Trang Sách». */

@@ -26,6 +26,14 @@ import { dbPromise, saveValue, deleteValue } from "../lib/persistence";
 import { Novel, Chapter, DictItem, PronounMapping, TranslationSettings } from "../types";
 import { paginateChapter } from "../utils/readerPaginateChapter";
 import {
+  buildTranslationBackupZip,
+  collectTranslationBackupNovels,
+  countTranslatedChapters,
+  downloadBlobWithFallback,
+  isFullVfsZipPath,
+  isTranslationBackupZipPath,
+} from "../utils/translationBackup";
+import {
   uiPanel,
   uiCard,
   uiCardInset,
@@ -63,6 +71,7 @@ interface VFSManagerProps {
   setPronounMappings: React.Dispatch<React.SetStateAction<PronounMapping[]>>;
   setSettings: React.Dispatch<React.SetStateAction<TranslationSettings>>;
   onAlert: (title: string, desc: string) => void;
+  onImportTranslationBackup: (file: File) => void | Promise<void>;
 }
 
 export default function VFSManager({
@@ -75,6 +84,7 @@ export default function VFSManager({
   setPronounMappings,
   setSettings,
   onAlert,
+  onImportTranslationBackup,
 }: VFSManagerProps) {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string>("");
@@ -82,6 +92,8 @@ export default function VFSManager({
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({ "luu_tru": true });
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isExportingTranslation, setIsExportingTranslation] = useState(false);
+  const [isImportingTranslation, setIsImportingTranslation] = useState(false);
   
   // Stored page translations fetched directly from IndexedDB
   const [pageTranslations, setPageTranslations] = useState<Record<string, string[]>>({});
@@ -675,6 +687,42 @@ export default function VFSManager({
     }
   };
 
+  const translatedChapterTotal = countTranslatedChapters(
+    collectTranslationBackupNovels(novels)
+  );
+
+  const handleExportTranslationBackup = async () => {
+    setIsExportingTranslation(true);
+    try {
+      const { blob, manifest, fileName } = await buildTranslationBackupZip(novels);
+      const picked = await downloadBlobWithFallback(blob, fileName);
+      if (!picked) return;
+      onAlert(
+        "Sao lưu data dịch",
+        `Đã xuất ${manifest.novelCount} truyện · ${manifest.chapterCount} chương đã dịch Lab (không gồm cấu hình).`
+      );
+    } catch (err: unknown) {
+      onAlert(
+        "Không xuất được",
+        err instanceof Error ? err.message : String(err)
+      );
+    } finally {
+      setIsExportingTranslation(false);
+    }
+  };
+
+  const handleImportTranslationBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingTranslation(true);
+    try {
+      await onImportTranslationBackup(file);
+    } finally {
+      setIsImportingTranslation(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
   // Export entire directory tree as structured nested folders zip
   const handleExportFullZIP = async () => {
     setIsExporting(true);
@@ -731,7 +779,16 @@ export default function VFSManager({
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(file);
-      
+      const zipPaths = Object.keys(contents.files);
+
+      if (isTranslationBackupZipPath(zipPaths) && !isFullVfsZipPath(zipPaths)) {
+        onAlert(
+          "Sai loại file ZIP",
+          "Đây là file «data dịch» (translation_data). Hãy dùng mục «Nạp data dịch» bên dưới — không dùng «Nạp file ZIP» đầy đủ."
+        );
+        return;
+      }
+
       let parsedSettings: TranslationSettings | null = null;
       let parsedDict: DictItem[] = [];
       let parsedPronouns: PronounMapping[] = [];
@@ -1114,7 +1171,7 @@ export default function VFSManager({
           <div className="min-w-0">
             <h2 className={uiTitle}>Sao lưu và khôi phục</h2>
             <p className={`${uiCaption} mt-1`}>
-              Ba cách làm việc khác nhau: <strong>lưu snapshot trong máy</strong>, <strong>tải file ZIP ra ngoài</strong>, hoặc <strong>nạp ZIP từ máy khác</strong>. Đừng nhầm ba loại này.
+              Bốn cách làm việc: <strong>snapshot trong máy</strong>, <strong>data dịch (khuyến nghị)</strong>, <strong>ZIP đầy đủ</strong>, <strong>nạp ZIP</strong>. Data dịch không gồm cấu hình — an toàn sau cài lại app.
             </p>
           </div>
         </div>
@@ -1337,6 +1394,57 @@ export default function VFSManager({
                 </button>
                 <div className="border-t border-app-accent/20 pt-3 mt-1">
                   {renderBackupHistoryList({ embedded: true })}
+                </div>
+              </div>
+
+              <div className={`${uiCard} border-2 border-teal-600/35 bg-teal-600/5 p-4 flex flex-col gap-3 shrink-0`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
+                    ★
+                  </span>
+                  <h3 className={`${uiTitle} text-xs`}>Sao lưu / Nạp data dịch (an toàn)</h3>
+                </div>
+                <p className={`${uiCaption} text-[10.5px] leading-relaxed`}>
+                  <strong>Khuyến nghị sau cài lại app:</strong> chỉ truyện + chương đã dịch Lab —{" "}
+                  <strong>không</strong> gồm cấu hình, API, từ điển, cache phân trang.
+                </p>
+                <p className={uiCaption}>
+                  Hiện có{" "}
+                  <span className="font-bold text-app-text">{translatedChapterTotal}</span> chương đã dịch
+                  có thể sao lưu.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportTranslationBackup}
+                    disabled={isExportingTranslation || translatedChapterTotal === 0}
+                    className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
+                  >
+                    <Download className="w-4 h-4" />
+                    {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch (.zip)"}
+                  </button>
+                  <label
+                    className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer justify-center ${
+                      isImportingTranslation ? "opacity-60 pointer-events-none" : ""
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    {isImportingTranslation ? "Đang nạp…" : "Nạp data dịch"}
+                    <input
+                      type="file"
+                      accept={
+                        typeof navigator !== "undefined" &&
+                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                          navigator.userAgent
+                        )
+                          ? "*/*"
+                          : ".zip"
+                      }
+                      className="hidden"
+                      onChange={handleImportTranslationBackupFile}
+                      disabled={isImportingTranslation}
+                    />
+                  </label>
                 </div>
               </div>
 

@@ -25,6 +25,11 @@ import {
 import { Novel, Chapter } from "../types";
 import type { ChapterRuleState } from "../utils/chapterRulesEngine";
 import { exportChaptersToTxt, exportChaptersToDocx, exportChaptersToEpub, triggerBrowserPrint } from "../utils/exporter";
+import {
+  buildTranslationBackupZip,
+  collectTranslationBackupNovels,
+  downloadBlobWithFallback,
+} from "../utils/translationBackup";
 import NovelLoader from "./NovelLoader";
 import {
   uiPageRoot,
@@ -64,6 +69,7 @@ interface StoryLibraryProps {
   isTranslating: boolean;
   chapterRuleStates?: ChapterRuleState[];
   onChapterRuleStatesChange?: (states: ChapterRuleState[]) => void;
+  onImportTranslationBackup?: (file: File) => void | Promise<void>;
 }
 
 export default function StoryLibrary({
@@ -77,6 +83,7 @@ export default function StoryLibrary({
   isTranslating,
   chapterRuleStates,
   onChapterRuleStatesChange,
+  onImportTranslationBackup,
 }: StoryLibraryProps) {
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [bookshelfType, setBookshelfType] = useState<"grid" | "list">(() => {
@@ -88,6 +95,8 @@ export default function StoryLibrary({
   const [exportStartIdx, setExportStartIdx] = useState<number>(1);
   const [exportEndIdx, setExportEndIdx] = useState<number>(1);
   const [exportFormat, setExportFormat] = useState<"txt" | "docx" | "epub" | "pdf">("txt");
+  const [isExportingTranslation, setIsExportingTranslation] = useState(false);
+  const [isImportingTranslation, setIsImportingTranslation] = useState(false);
   
   const [novelToDelete, setNovelToDelete] = useState<Novel | null>(null);
   const [deleteOption, setDeleteOption] = useState<"library_only" | "complete">("library_only");
@@ -167,6 +176,45 @@ export default function StoryLibrary({
       performActualExport();
     }
   };
+
+  const handleExportTranslationBackup = async () => {
+    if (!targetExportNovel) return;
+    setIsExportingTranslation(true);
+    try {
+      const { blob, manifest, fileName } = await buildTranslationBackupZip(novels, {
+        novelId: targetExportNovel.id,
+      });
+      await downloadBlobWithFallback(blob, fileName);
+      if (onAlert) {
+        onAlert(
+          "Sao lưu data dịch",
+          `Đã xuất «${targetExportNovel.title}»: ${manifest.chapterCount} chương đã dịch Lab.`
+        );
+      }
+    } catch (err: unknown) {
+      if (onAlert) {
+        onAlert("Không xuất được", err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setIsExportingTranslation(false);
+    }
+  };
+
+  const handleImportTranslationBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onImportTranslationBackup) return;
+    setIsImportingTranslation(true);
+    try {
+      await onImportTranslationBackup(file);
+    } finally {
+      setIsImportingTranslation(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const translatedCountForExportNovel = targetExportNovel
+    ? collectTranslationBackupNovels(novels, { novelId: targetExportNovel.id })[0]?.chapters.length ?? 0
+    : 0;
 
   const toggleBookshelfType = (type: "grid" | "list") => {
     setBookshelfType(type);
@@ -640,6 +688,69 @@ export default function StoryLibrary({
                       <Download className="w-4 h-4" /> Bắt đầu xuất bản {exportEndIdx - exportStartIdx + 1} chương chọn lọc
                     </button>
                   </div>
+                )}
+              </div>
+
+              {/* 2b. Sao lưu data dịch Lab — theo truyện đang chọn */}
+              <div className={`${uiCard} border-teal-600/30 bg-teal-600/5 p-4 space-y-3`}>
+                <span className={`${uiLabel} text-[10px] block`}>
+                  (2b) Sao lưu / Nạp data dịch Lab (ZIP an toàn):
+                </span>
+                <p className={`${uiCaption} text-[10.5px] leading-relaxed`}>
+                  Chỉ bản dịch chương — không gồm cấu hình app. Phù hợp sau khi gỡ cài và cài lại APK.
+                </p>
+                {novels.length === 0 ? (
+                  <p className={`${uiCaption} italic`}>Chưa có truyện trong thư viện.</p>
+                ) : (
+                  <>
+                    <p className={uiCaption}>
+                      Truyện đang chọn:{" "}
+                      <span className="font-bold text-app-text truncate">
+                        {targetExportNovel?.title ?? "—"}
+                      </span>
+                      {" · "}
+                      <span className="font-bold">{translatedCountForExportNovel}</span> chương đã dịch
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportTranslationBackup}
+                        disabled={
+                          isExportingTranslation ||
+                          !targetExportNovel ||
+                          translatedCountForExportNovel === 0
+                        }
+                        className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
+                      >
+                        <Download className="w-4 h-4" />
+                        {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch truyện này"}
+                      </button>
+                      {onImportTranslationBackup ? (
+                        <label
+                          className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer justify-center ${
+                            isImportingTranslation ? "opacity-60 pointer-events-none" : ""
+                          }`}
+                        >
+                          <FileDown className="w-4 h-4" />
+                          {isImportingTranslation ? "Đang nạp…" : "Nạp data dịch (gộp)"}
+                          <input
+                            type="file"
+                            accept={
+                              typeof navigator !== "undefined" &&
+                              /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                                navigator.userAgent
+                              )
+                                ? "*/*"
+                                : ".zip"
+                            }
+                            className="hidden"
+                            onChange={handleImportTranslationBackupFile}
+                            disabled={isImportingTranslation}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  </>
                 )}
               </div>
 

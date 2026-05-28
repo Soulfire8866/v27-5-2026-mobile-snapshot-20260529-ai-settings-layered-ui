@@ -50,6 +50,7 @@ import { formatChapterCharCountLabel } from "../utils/chapterMetrics";
 import { applyReaderSystemChrome } from "../utils/systemChrome";
 import {
   getReaderThemeTokens,
+  normalizeReaderTheme,
   READER_TOOLBAR_HEIGHT_PX,
   readerSafeBottomCss,
   readerSafeTopCss,
@@ -907,12 +908,11 @@ export default function ReaderView({
 
   const isPageLayout = readMode === "page";
   const barsOverlay = isMobile && isPageLayout;
-  const readerTheme = getReaderThemeTokens(settings.theme);
+  const readerTheme = getReaderThemeTokens(normalizeReaderTheme(settings.theme));
 
   useEffect(() => {
-    if (!barsOverlay) return;
-    void applyReaderSystemChrome(settings.theme);
-  }, [barsOverlay, settings.theme, showBarsOnMobile, showSettings]);
+    void applyReaderSystemChrome(normalizeReaderTheme(settings.theme));
+  }, [settings.theme]);
 
   const pageFrameStyle: React.CSSProperties = isPageLayout
     ? {
@@ -2427,7 +2427,7 @@ export default function ReaderView({
   };
 
   const themeClasses = {
-    "light": "bg-white text-zinc-900 border-zinc-200 dark:bg-white dark:text-zinc-900 dark:border-zinc-200",
+    "light": "bg-[#f4f8ff] text-zinc-900 border-sky-200 dark:bg-[#f4f8ff] dark:text-zinc-900 dark:border-sky-200",
     "dark": "bg-zinc-950 text-zinc-300 border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:border-zinc-800",
     "cream": "bg-[#fcf8f2] text-[#2c3e50] border-[#e4d3b2] dark:bg-[#fcf8f2] dark:text-[#2c3e50] dark:border-[#e4d3b2]",
     "pure-white": "bg-white text-black border-zinc-300 dark:bg-white dark:text-black dark:border-zinc-300",
@@ -2464,7 +2464,9 @@ export default function ReaderView({
   };
 
   const changeTheme = (theme: TranslationSettings["theme"]) => {
-    onUpdateSettings({ ...settings, theme: theme });
+    const normalized = normalizeReaderTheme(theme);
+    void applyReaderSystemChrome(normalized);
+    onUpdateSettings({ ...settings, theme: normalized });
   };
 
   const handleOpenLabBilingual = () => {
@@ -2484,12 +2486,15 @@ export default function ReaderView({
     );
   }
 
-  const readerPanelStyle: React.CSSProperties | undefined = barsOverlay
-    ? {
-        ["--reader-safe-top" as string]: readerSafeTopCss(),
-        ["--reader-safe-bottom" as string]: readerSafeBottomCss(),
-      }
-    : undefined;
+  const readerPanelStyle: React.CSSProperties = {
+    backgroundColor: readerTheme.surfaceHex,
+    ...(barsOverlay
+      ? {
+          ["--reader-safe-top" as string]: readerSafeTopCss(),
+          ["--reader-safe-bottom" as string]: readerSafeBottomCss(),
+        }
+      : {}),
+  };
 
   const readerSettingsTop =
     barsOverlay
@@ -2506,6 +2511,7 @@ export default function ReaderView({
       id="reader-view-panel"
       ref={paginationMeasureRef}
       data-reader-overlay={barsOverlay ? "true" : undefined}
+      data-reader-theme={normalizeReaderTheme(settings.theme)}
       style={readerPanelStyle}
     >
       

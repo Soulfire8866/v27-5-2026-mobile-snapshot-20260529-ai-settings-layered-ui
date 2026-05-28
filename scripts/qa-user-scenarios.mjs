@@ -41,9 +41,17 @@ import { buildDictContextString, MAX_DICT_CONTEXT_CHARS } from "../src/utils/dic
 import {
   computeReaderSettingsPanelTopPx,
   getReaderThemeTokens,
+  normalizeReaderTheme,
   READER_SAFE_TOP_FALLBACK_PX,
   READER_TOOLBAR_HEIGHT_PX,
 } from "../src/utils/readerChromeLayout.ts";
+import {
+  mergeTranslationBackup,
+  novelToTranslationBackupPayload,
+  previewTranslationBackupMerge,
+  TRANSLATION_BACKUP_KIND,
+  TRANSLATION_BACKUP_SCHEMA_VERSION,
+} from "../src/utils/translationBackup.ts";
 import { readerThemeChromeBg } from "../src/utils/systemChrome.ts";
 import { lookupSelectionInDict, lookupChineseInDict } from "../src/utils/dictLookup.ts";
 import {
@@ -743,6 +751,98 @@ warn(
 warn(
   "Tự dịch chương kế (Cấu hình Trang Sách): mặc định tắt; sau nhảy chương cần Next/Prev liền kề một lần; đủ x giây mới dịch C+1 qua Lab."
 );
+
+// Sao lưu data dịch (1C+1D+2A+4A)
+const sampleNovel = {
+  id: "n-backup",
+  title: "Test",
+  author: "QA",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  chapters: [
+    {
+      id: "c1",
+      title: "Ch 1",
+      sourceText: "甲",
+      translatedText: "Giáp",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      charCount: 1,
+      wordCount: 1,
+    },
+    {
+      id: "c2",
+      title: "Ch 2",
+      sourceText: "乙",
+      translatedText: "",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      charCount: 1,
+      wordCount: 0,
+    },
+  ],
+};
+const payload = novelToTranslationBackupPayload(sampleNovel);
+ok("1D: chỉ export chương đã dịch", payload?.chapters.length === 1 && payload.chapters[0].id === "c1");
+ok("4A: schema backup cố định", TRANSLATION_BACKUP_SCHEMA_VERSION === 1 && TRANSLATION_BACKUP_KIND === "translation-data");
+
+const existing = [
+  {
+    ...sampleNovel,
+    chapters: [
+      {
+        id: "c1",
+        title: "Ch 1",
+        sourceText: "甲",
+        translatedText: "Cũ",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        charCount: 1,
+        wordCount: 1,
+      },
+    ],
+    deletedFromLibrary: true,
+  },
+];
+const imported = [
+  {
+    ...sampleNovel,
+    chapters: [
+      {
+        id: "c1",
+        title: "Ch 1",
+        sourceText: "甲",
+        translatedText: "Mới",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        charCount: 1,
+        wordCount: 1,
+      },
+      {
+        id: "c3",
+        title: "Ch 3",
+        sourceText: "丙",
+        translatedText: "Bính",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        charCount: 1,
+        wordCount: 1,
+      },
+    ],
+  },
+];
+const preview = previewTranslationBackupMerge(existing, imported);
+ok("2A preview: ghi đè 1 chương", preview.chaptersUpdated === 1 && preview.chaptersAdded === 1);
+const merged = mergeTranslationBackup(existing, imported);
+ok("2A merge: cập nhật translatedText", merged.novels[0].chapters.find((c) => c.id === "c1")?.translatedText === "Mới");
+ok("2A merge: giữ deletedFromLibrary", merged.novels[0].deletedFromLibrary === true);
+ok("2A merge: xóa cache page_trans khi ghi đè", merged.clearedPageCacheChapterIds.includes("c1"));
+
+const previewAddOnly = previewTranslationBackupMerge(existing, imported, { mode: "add_only" });
+ok("add_only preview: bỏ qua trùng id", previewAddOnly.chaptersSkipped === 1 && previewAddOnly.chaptersUpdated === 0);
+const mergedAddOnly = mergeTranslationBackup(existing, imported, { mode: "add_only" });
+ok(
+  "add_only merge: giữ bản dịch cũ",
+  mergedAddOnly.novels[0].chapters.find((c) => c.id === "c1")?.translatedText === "Cũ"
+);
+ok("add_only merge: thêm chương mới", mergedAddOnly.novels[0].chapters.some((c) => c.id === "c3"));
+ok("add_only merge: không xóa page_trans", mergedAddOnly.clearedPageCacheChapterIds.length === 0);
+
+ok("Fluent legacy id", normalizeReaderTheme("fluent") === "light");
 
 console.log("\n=== Tổng kết ===\n");
 console.log(`  Passed: ${passed}`);

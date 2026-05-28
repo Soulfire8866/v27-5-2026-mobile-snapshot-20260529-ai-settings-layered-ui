@@ -57,6 +57,13 @@ import PandaBrandIcon from "./components/PandaBrandIcon";
 import { resolveSelectedModel } from "./utils/aiModels";
 import { useAppColorScheme } from "./hooks/useAppColorScheme";
 import { applyAppSystemChrome, applyReaderSystemChrome } from "./utils/systemChrome";
+import { normalizeReaderTheme } from "./utils/readerChromeLayout";
+import {
+  formatTranslationBackupMergeSummary,
+  mergeTranslationBackup,
+  parseTranslationBackupZip,
+  previewTranslationBackupMerge,
+} from "./utils/translationBackup";
 import { readerSafeBottomCss } from "./utils/readerChromeLayout";
 import {
   uiShell,
@@ -225,6 +232,7 @@ export default function App() {
   // Modern alert & confirm state triggers (Fluent design dialogues)
   const [alertConfig, setAlertConfig] = useState<{ title: string; desc: string } | null>(null);
   const [confirmConfig, setConfirmConfig] = useState<{ title: string; desc: string; onAgree: () => void; isDanger?: boolean } | null>(null);
+  const [translationImportPrompt, setTranslationImportPrompt] = useState<{ imported: Novel[] } | null>(null);
   const [showModelChangePopup, setShowModelChangePopup] = useState<{ newModelId: string } | null>(null);
 
   // Register last active novel ID tracker
@@ -273,6 +281,7 @@ export default function App() {
           setSettings({
             ...DEFAULT_SETTINGS,
             ...storedSettings,
+            theme: normalizeReaderTheme(storedSettings.theme),
             selectedModel: resolveSelectedModel(storedSettings.selectedModel),
             appColorScheme:
               storedSettings.appColorScheme === "light" ||
@@ -1041,6 +1050,38 @@ export default function App() {
     await saveValue("settings", newSettings);
   };
 
+  const applyTranslationBackupImport = useCallback(
+    async (imported: Novel[], mode: "overwrite" | "add_only") => {
+      try {
+        const { novels: merged, stats, clearedPageCacheChapterIds } = mergeTranslationBackup(
+          novels,
+          imported,
+          { mode }
+        );
+
+        for (const chapterId of clearedPageCacheChapterIds) {
+          await deleteValue(`page_trans_${chapterId}`).catch(() => {});
+        }
+
+        setNovels(merged);
+        await saveValue("novels", merged);
+        triggerAlert("Nạp data dịch xong", formatTranslationBackupMergeSummary(stats));
+      } catch (err) {
+        triggerAlert("Lỗi khi gộp dữ liệu", err instanceof Error ? err.message : String(err));
+      }
+    },
+    [novels, triggerAlert]
+  );
+
+  const handleImportTranslationBackup = useCallback(async (file: File) => {
+    try {
+      const parsed = await parseTranslationBackupZip(file);
+      setTranslationImportPrompt({ imported: parsed.novels });
+    } catch (err) {
+      triggerAlert("Không đọc được file", err instanceof Error ? err.message : String(err));
+    }
+  }, [triggerAlert]);
+
   const refreshChapterReadiness = useCallback(async () => {
     if (!activeNovel) return;
     const map = await buildChapterReadinessMap(activeNovel.chapters);
@@ -1433,6 +1474,7 @@ export default function App() {
               isTranslating={isTranslatingFullNovel}
               chapterRuleStates={settings.chapterRuleStates}
               onChapterRuleStatesChange={(states) => handleUpdateSetting("chapterRuleStates", states)}
+              onImportTranslationBackup={handleImportTranslationBackup}
             />
           </div>
         )}
@@ -1888,6 +1930,7 @@ export default function App() {
               setPronounMappings={setPronounMappings}
               setSettings={setSettings}
               onAlert={triggerAlert}
+              onImportTranslationBackup={handleImportTranslationBackup}
             />
           </div>
         )}
@@ -1911,6 +1954,76 @@ export default function App() {
             >
               Chấp nhận
             </button>
+          </div>
+        </div>
+      )}
+
+      {translationImportPrompt && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in"
+          id="translation-import-prompt"
+        >
+          <div className={`${uiCard} p-5 shadow-2xl max-w-md w-full animate-scale-up space-y-3`}>
+            <h4 className={`${uiTitle} flex items-center gap-2`}>
+              <FolderTree className="w-5 h-5 text-teal-600 shrink-0" />
+              Nạp data dịch
+            </h4>
+            <p className={`${uiCaption} leading-relaxed`}>
+              Chỉ gộp truyện/chương đã dịch Lab — không đổi cấu hình, API key hay từ điển.
+            </p>
+            <div className="space-y-2 text-[11px] leading-relaxed">
+              <div className="rounded-lg border border-app-border bg-app-surface-muted/60 p-2.5">
+                <span className="font-bold text-app-text block mb-1">Chỉ thêm mới (không ghi đè)</span>
+                <span className="text-app-text-muted">
+                  {formatTranslationBackupMergeSummary(
+                    previewTranslationBackupMerge(novels, translationImportPrompt.imported, {
+                      mode: "add_only",
+                    })
+                  )}
+                </span>
+              </div>
+              <div className="rounded-lg border border-amber-500/35 bg-amber-500/8 p-2.5">
+                <span className="font-bold text-app-text block mb-1">Gộp & ghi đè chương trùng id</span>
+                <span className="text-app-text-muted">
+                  {formatTranslationBackupMergeSummary(
+                    previewTranslationBackupMerge(novels, translationImportPrompt.imported, {
+                      mode: "overwrite",
+                    })
+                  )}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const imported = translationImportPrompt.imported;
+                  setTranslationImportPrompt(null);
+                  void applyTranslationBackupImport(imported, "add_only");
+                }}
+                className={`${uiBtnPrimary} w-full min-h-10 bg-teal-700 hover:bg-teal-600`}
+              >
+                Chỉ thêm mới
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const imported = translationImportPrompt.imported;
+                  setTranslationImportPrompt(null);
+                  void applyTranslationBackupImport(imported, "overwrite");
+                }}
+                className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold`}
+              >
+                Gộp & ghi đè
+              </button>
+              <button
+                type="button"
+                onClick={() => setTranslationImportPrompt(null)}
+                className={`${uiBtnGhost} w-full min-h-10`}
+              >
+                Hủy bỏ
+              </button>
+            </div>
           </div>
         </div>
       )}
