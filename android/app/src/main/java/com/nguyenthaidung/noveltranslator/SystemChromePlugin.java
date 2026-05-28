@@ -13,6 +13,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "SystemChrome")
 public class SystemChromePlugin extends Plugin {
 
+    @SuppressWarnings("deprecation")
     @PluginMethod
     public void setSystemBars(PluginCall call) {
         String colorHex = call.getString("color");

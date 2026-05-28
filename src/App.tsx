@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { Suspense, lazy, useState, useEffect, useCallback, useRef } from "react";
 import { 
   BookOpen, 
   Library, 
@@ -22,10 +22,7 @@ import {
 import { saveValue, getValue, deleteValue } from "./lib/persistence";
 import { mergeChapterRuleStates } from "./utils/chapterRulesEngine";
 import { Novel, Chapter, TranslationSettings, DictItem, PronounMapping } from "./types";
-import {
-  translateChapter,
-  type ChapterTranslationResult,
-} from "./utils/chapterTranslationEngine";
+import type { ChapterTranslationResult } from "./utils/chapterTranslationEngine";
 import {
   buildChapterReadinessMap,
   getChapterReadinessSync,
@@ -45,25 +42,13 @@ import { formatChapterCharCountLabel } from "./utils/chapterMetrics";
 import { buildDictContextString } from "./utils/dictContextBuilder";
 import { isNovelDictImportEligible } from "./utils/novelDictImport";
 import { maybeQueueLabAutoTranslateNextAfterLab } from "./utils/labAutoTranslateNext";
-import ReaderViewGate, { preloadReaderView } from "./components/ReaderViewGate";
-import StoryLibrary from "./components/StoryLibrary";
-import CompareView from "./components/CompareView";
-import DictManager from "./components/DictManager";
-import PronounsGuide from "./components/PronounsGuide";
-import SettingsTab from "./components/SettingsTab";
-import VFSManager from "./components/VFSManager";
+import ReaderViewGate from "./components/ReaderViewGate";
 import TranslationErrorPanel from "./components/TranslationErrorPanel";
 import PandaBrandIcon from "./components/PandaBrandIcon";
 import { resolveSelectedModel } from "./utils/aiModels";
 import { useAppColorScheme } from "./hooks/useAppColorScheme";
 import { applyAppSystemChrome, applyReaderSystemChrome } from "./utils/systemChrome";
 import { normalizeReaderTheme } from "./utils/readerChromeLayout";
-import {
-  formatTranslationBackupMergeSummary,
-  mergeTranslationBackup,
-  parseTranslationBackupZip,
-  previewTranslationBackupMerge,
-} from "./utils/translationBackup";
 import { readerSafeBottomCss } from "./utils/readerChromeLayout";
 import {
   uiShell,
@@ -83,6 +68,16 @@ import {
   uiLabel,
   uiCaption,
 } from "./lib/ui";
+
+const StoryLibrary = lazy(() => import("./components/StoryLibrary"));
+const CompareView = lazy(() => import("./components/CompareView"));
+const DictManager = lazy(() => import("./components/DictManager"));
+const PronounsGuide = lazy(() => import("./components/PronounsGuide"));
+const SettingsTab = lazy(() => import("./components/SettingsTab"));
+const VFSManager = lazy(() => import("./components/VFSManager"));
+
+const loadChapterTranslationEngine = () => import("./utils/chapterTranslationEngine");
+const loadTranslationBackupUtils = () => import("./utils/translationBackup");
 
 const DEFAULT_PRONOUNS: PronounMapping[] = [
   { id: "p1", chinese: "我", vietnamese: "ta", pinyin: "wǒ", note: "Tôi tự xưng ta" },
@@ -232,7 +227,11 @@ export default function App() {
   // Modern alert & confirm state triggers (Fluent design dialogues)
   const [alertConfig, setAlertConfig] = useState<{ title: string; desc: string } | null>(null);
   const [confirmConfig, setConfirmConfig] = useState<{ title: string; desc: string; onAgree: () => void; isDanger?: boolean } | null>(null);
-  const [translationImportPrompt, setTranslationImportPrompt] = useState<{ imported: Novel[] } | null>(null);
+  const [translationImportPrompt, setTranslationImportPrompt] = useState<{
+    imported: Novel[];
+    addOnlySummary: string;
+    overwriteSummary: string;
+  } | null>(null);
   const [showModelChangePopup, setShowModelChangePopup] = useState<{ newModelId: string } | null>(null);
 
   // Register last active novel ID tracker
@@ -370,6 +369,7 @@ export default function App() {
     ch: Chapter,
     dictContext: string
   ): Promise<ChapterTranslationResult> => {
+    const { translateChapter } = await loadChapterTranslationEngine();
     return translateChapter({
       sourceText: ch.sourceText,
       chapterTitle: ch.title,
@@ -544,6 +544,7 @@ export default function App() {
 
     try {
       const dictContext = getDictContextForActiveNovel();
+      const { translateChapter } = await loadChapterTranslationEngine();
       const translation = await translateChapter({
         sourceText: activeCh.sourceText,
         chapterTitle: activeCh.title,
@@ -1053,6 +1054,8 @@ export default function App() {
   const applyTranslationBackupImport = useCallback(
     async (imported: Novel[], mode: "overwrite" | "add_only") => {
       try {
+        const { mergeTranslationBackup, formatTranslationBackupMergeSummary } =
+          await loadTranslationBackupUtils();
         const { novels: merged, stats, clearedPageCacheChapterIds } = mergeTranslationBackup(
           novels,
           imported,
@@ -1075,12 +1078,29 @@ export default function App() {
 
   const handleImportTranslationBackup = useCallback(async (file: File) => {
     try {
+      const {
+        parseTranslationBackupZip,
+        previewTranslationBackupMerge,
+        formatTranslationBackupMergeSummary,
+      } = await loadTranslationBackupUtils();
       const parsed = await parseTranslationBackupZip(file);
-      setTranslationImportPrompt({ imported: parsed.novels });
+      setTranslationImportPrompt({
+        imported: parsed.novels,
+        addOnlySummary: formatTranslationBackupMergeSummary(
+          previewTranslationBackupMerge(novels, parsed.novels, {
+            mode: "add_only",
+          })
+        ),
+        overwriteSummary: formatTranslationBackupMergeSummary(
+          previewTranslationBackupMerge(novels, parsed.novels, {
+            mode: "overwrite",
+          })
+        ),
+      });
     } catch (err) {
       triggerAlert("Không đọc được file", err instanceof Error ? err.message : String(err));
     }
-  }, [triggerAlert]);
+  }, [novels, triggerAlert]);
 
   const refreshChapterReadiness = useCallback(async () => {
     if (!activeNovel) return;
@@ -1115,7 +1135,6 @@ export default function App() {
         }
       }
       syncChapterAcrossWorkspaces(activeNovelId, chapterId, page);
-      preloadReaderView();
       setActiveChapterId(chapterId);
       setActiveTab("reader");
       void handleUpdateReadingProgress(activeNovelId, chapterId, page, "page");
@@ -1328,6 +1347,13 @@ export default function App() {
     );
   }
 
+  const renderTabFallback = (message: string) => (
+    <div className={`${uiCard} p-4 flex items-center gap-2 text-app-text-muted`}>
+      <RefreshCw className="w-4 h-4 animate-spin text-app-accent shrink-0" />
+      <span className="text-xs">{message}</span>
+    </div>
+  );
+
   return (
     <div className={`${uiShell} select-none`}>
       
@@ -1402,11 +1428,7 @@ export default function App() {
                 return (
                   <button
                     key={tab.id}
-                    onPointerDown={() => {
-                      if (tab.id === "reader") preloadReaderView();
-                    }}
                     onClick={() => {
-                      if (tab.id === "reader") preloadReaderView();
                       setActiveTab(tab.id as any);
                       setTranslationError(null);
                       setBatchErrors(null);
@@ -1436,46 +1458,47 @@ export default function App() {
 
         {activeTab === "library" && (
           <div className="flex-1 min-h-0">
-            <StoryLibrary
-              novels={novels.filter((n) => !n.deletedFromLibrary)}
-              activeNovelId={activeNovelId}
-              onSelectNovel={(nid, switchT = true) => {
-                setActiveNovelId(nid);
-                const targetNovel = novels.find((n) => n.id === nid);
-                if (targetNovel) {
-                  let storedChapterId = targetNovel.lastReadChapterId;
-                  if (!storedChapterId) {
-                    try {
-                      storedChapterId =
-                        localStorage.getItem(`last_read_chapter_${nid}`) ||
-                        localStorage.getItem(`last_read_progress_${nid}`) ||
-                        undefined;
-                    } catch (e) {}
-                  }
-                  const hasChapter = targetNovel.chapters.some((c) => c.id === storedChapterId);
-                  if (storedChapterId && hasChapter) {
-                    setActiveChapterId(storedChapterId);
-                  } else {
-                    const firstCh = targetNovel.chapters[0];
-                    if (firstCh) {
-                      setActiveChapterId(firstCh.id);
+            <Suspense fallback={renderTabFallback("Đang tải Thư Viện...")}>
+              <StoryLibrary
+                novels={novels.filter((n) => !n.deletedFromLibrary)}
+                activeNovelId={activeNovelId}
+                onSelectNovel={(nid, switchT = true) => {
+                  setActiveNovelId(nid);
+                  const targetNovel = novels.find((n) => n.id === nid);
+                  if (targetNovel) {
+                    let storedChapterId = targetNovel.lastReadChapterId;
+                    if (!storedChapterId) {
+                      try {
+                        storedChapterId =
+                          localStorage.getItem(`last_read_chapter_${nid}`) ||
+                          localStorage.getItem(`last_read_progress_${nid}`) ||
+                          undefined;
+                      } catch (e) {}
+                    }
+                    const hasChapter = targetNovel.chapters.some((c) => c.id === storedChapterId);
+                    if (storedChapterId && hasChapter) {
+                      setActiveChapterId(storedChapterId);
+                    } else {
+                      const firstCh = targetNovel.chapters[0];
+                      if (firstCh) {
+                        setActiveChapterId(firstCh.id);
+                      }
                     }
                   }
-                }
-                if (switchT) {
-                  preloadReaderView();
-                  setActiveTab("reader");
-                }
-              }}
-              onDeleteNovel={handleDeleteNovel}
-              onAlert={triggerAlert}
-              onConfirm={triggerConfirm}
-              onChaptersLoaded={handleChaptersLoaded}
-              isTranslating={isTranslatingFullNovel}
-              chapterRuleStates={settings.chapterRuleStates}
-              onChapterRuleStatesChange={(states) => handleUpdateSetting("chapterRuleStates", states)}
-              onImportTranslationBackup={handleImportTranslationBackup}
-            />
+                  if (switchT) {
+                    setActiveTab("reader");
+                  }
+                }}
+                onDeleteNovel={handleDeleteNovel}
+                onAlert={triggerAlert}
+                onConfirm={triggerConfirm}
+                onChaptersLoaded={handleChaptersLoaded}
+                isTranslating={isTranslatingFullNovel}
+                chapterRuleStates={settings.chapterRuleStates}
+                onChapterRuleStatesChange={(states) => handleUpdateSetting("chapterRuleStates", states)}
+                onImportTranslationBackup={handleImportTranslationBackup}
+              />
+            </Suspense>
           </div>
         )}
 
@@ -1721,26 +1744,28 @@ export default function App() {
                   )}
 
                   <div key={activeChapter.id} className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                    <CompareView
-                      chapterId={activeChapter.id}
-                      chapterTitle={activeChapter.title}
-                      sourceText={activeChapter.sourceText}
-                      translatedTitle={activeChapter.translatedTitle}
-                      translatedText={labDisplayTranslation}
-                      onUpdateTranslation={handleUpdateTranslation}
-                      onAddDictWord={handleAddDictWord}
-                      dictItems={dictItems}
-                      novelId={activeNovel.id}
-                      initialShowPinyin={labOpenFocus === "han_pinyin"}
-                      initialViewStyle={
-                        labOpenFocus === "han_pinyin" ? "interleaved" : "columns"
-                      }
-                      openFocusBanner={
-                        labOpenFocus === "han_pinyin"
-                          ? "Mở từ Phòng Đọc: dạng Xen kẽ (Hán → Pinyin → Việt). Dùng nút gạt Pinyin để tắt/bật phiên âm bất cứ lúc nào."
-                          : null
-                      }
-                    />
+                    <Suspense fallback={renderTabFallback("Đang tải Lab Dịch...")}>
+                      <CompareView
+                        chapterId={activeChapter.id}
+                        chapterTitle={activeChapter.title}
+                        sourceText={activeChapter.sourceText}
+                        translatedTitle={activeChapter.translatedTitle}
+                        translatedText={labDisplayTranslation}
+                        onUpdateTranslation={handleUpdateTranslation}
+                        onAddDictWord={handleAddDictWord}
+                        dictItems={dictItems}
+                        novelId={activeNovel.id}
+                        initialShowPinyin={labOpenFocus === "han_pinyin"}
+                        initialViewStyle={
+                          labOpenFocus === "han_pinyin" ? "interleaved" : "columns"
+                        }
+                        openFocusBanner={
+                          labOpenFocus === "han_pinyin"
+                            ? "Mở từ Phòng Đọc: dạng Xen kẽ (Hán → Pinyin → Việt). Dùng nút gạt Pinyin để tắt/bật phiên âm bất cứ lúc nào."
+                            : null
+                        }
+                      />
+                    </Suspense>
                   </div>
 
                   {/* Navigation Footer for Previous and Next Chapter */}
@@ -1880,58 +1905,66 @@ export default function App() {
 
         {activeTab === "dict" && (
           <div className="flex-1 min-h-0">
-            <DictManager
-              dictItems={dictItems}
-              onAddWord={handleAddDictWord}
-              onUpdateWord={handleUpdateDictWord}
-              onDeleteWord={handleDeleteDictWord}
-              onClearDict={handleClearDict}
-              onLoadPreset={handleLoadDictPreset}
-              onImportDictTxt={handleImportDictTxt}
-              onApplyNovelDictReplacements={handleApplyNovelDictReplacements}
-              activeNovelId={activeNovelId}
-              novels={novels}
-              pronounMappings={pronounMappings}
-            />
+            <Suspense fallback={renderTabFallback("Đang tải Từ Điển...")}>
+              <DictManager
+                dictItems={dictItems}
+                onAddWord={handleAddDictWord}
+                onUpdateWord={handleUpdateDictWord}
+                onDeleteWord={handleDeleteDictWord}
+                onClearDict={handleClearDict}
+                onLoadPreset={handleLoadDictPreset}
+                onImportDictTxt={handleImportDictTxt}
+                onApplyNovelDictReplacements={handleApplyNovelDictReplacements}
+                activeNovelId={activeNovelId}
+                novels={novels}
+                pronounMappings={pronounMappings}
+              />
+            </Suspense>
           </div>
         )}
 
         {activeTab === "pronouns" && (
           <div className="flex-1 min-h-0">
-            <PronounsGuide
-              pronounMappings={pronounMappings}
-              onAddPronoun={handleAddPronoun}
-              onDeletePronoun={handleDeletePronoun}
-              onResetDefaultPronouns={handleResetDefaultPronouns}
-            />
+            <Suspense fallback={renderTabFallback("Đang tải Quy Tắc Xưng Hô...")}>
+              <PronounsGuide
+                pronounMappings={pronounMappings}
+                onAddPronoun={handleAddPronoun}
+                onDeletePronoun={handleDeletePronoun}
+                onResetDefaultPronouns={handleResetDefaultPronouns}
+              />
+            </Suspense>
           </div>
         )}
 
         {activeTab === "settings" && (
           <div className="flex-1 min-h-0">
-            <SettingsTab
-              settings={settings}
-              onUpdateApiKey={handleUpdateApiKey}
-              onSelectModel={handleSelectModel}
-              onUpdateSetting={handleUpdateSetting}
-            />
+            <Suspense fallback={renderTabFallback("Đang tải Cấu Hình...")}>
+              <SettingsTab
+                settings={settings}
+                onUpdateApiKey={handleUpdateApiKey}
+                onSelectModel={handleSelectModel}
+                onUpdateSetting={handleUpdateSetting}
+              />
+            </Suspense>
           </div>
         )}
 
         {activeTab === "vfs" && (
           <div className="flex-1 min-h-0">
-            <VFSManager
-              novels={novels}
-              dictItems={dictItems}
-              pronounMappings={pronounMappings}
-              settings={settings}
-              setNovels={setNovels}
-              setDictItems={setDictItems}
-              setPronounMappings={setPronounMappings}
-              setSettings={setSettings}
-              onAlert={triggerAlert}
-              onImportTranslationBackup={handleImportTranslationBackup}
-            />
+            <Suspense fallback={renderTabFallback("Đang tải Sao Lưu và Khôi Phục...")}>
+              <VFSManager
+                novels={novels}
+                dictItems={dictItems}
+                pronounMappings={pronounMappings}
+                settings={settings}
+                setNovels={setNovels}
+                setDictItems={setDictItems}
+                setPronounMappings={setPronounMappings}
+                setSettings={setSettings}
+                onAlert={triggerAlert}
+                onImportTranslationBackup={handleImportTranslationBackup}
+              />
+            </Suspense>
           </div>
         )}
 
@@ -1984,21 +2017,13 @@ export default function App() {
               <div className="rounded-lg border border-app-border bg-app-surface-muted/60 p-2.5">
                 <span className="font-bold text-app-text block mb-1">Chỉ thêm mới (không ghi đè)</span>
                 <span className="text-app-text-muted">
-                  {formatTranslationBackupMergeSummary(
-                    previewTranslationBackupMerge(novels, translationImportPrompt.imported, {
-                      mode: "add_only",
-                    })
-                  )}
+                  {translationImportPrompt.addOnlySummary}
                 </span>
               </div>
               <div className="rounded-lg border border-amber-500/35 bg-amber-500/8 p-2.5">
                 <span className="font-bold text-app-text block mb-1">Gộp & ghi đè chương trùng id</span>
                 <span className="text-app-text-muted">
-                  {formatTranslationBackupMergeSummary(
-                    previewTranslationBackupMerge(novels, translationImportPrompt.imported, {
-                      mode: "overwrite",
-                    })
-                  )}
+                  {translationImportPrompt.overwriteSummary}
                 </span>
               </div>
             </div>
