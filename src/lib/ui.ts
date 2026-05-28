@@ -9,80 +9,80 @@ export const uiShell =
   "min-h-screen flex flex-col font-sans antialiased bg-app-bg text-app-text selection:bg-app-accent/20 pb-[env(safe-area-inset-bottom,0px)]";
 
 export const uiHeader =
-  "sticky top-0 z-40 shrink-0 px-3 flex items-center justify-between gap-3 border-b border-app-border bg-app-surface/95 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)] min-h-[calc(3rem+env(safe-area-inset-top,0px))]";
+  "sticky top-0 z-40 shrink-0 px-3 md:px-4 flex items-center justify-between gap-3 border-b border-app-border/85 bg-app-surface/92 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] dark:shadow-[0_1px_0_rgba(255,255,255,0.04)] pt-[env(safe-area-inset-top,0px)] min-h-[calc(3.25rem+env(safe-area-inset-top,0px))]";
 
 export const uiMain = "flex-1 w-full mx-auto min-h-0 flex flex-col custom-scrollbar";
 
 export const uiCard =
-  "bg-app-surface border border-app-border rounded-lg shadow-sm transition-colors duration-150 ease-out";
+  "bg-app-surface border border-app-border rounded-xl shadow-[0_1px_2px_rgba(17,24,39,0.05),0_8px_18px_rgba(17,24,39,0.04)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_10px_22px_rgba(0,0,0,0.25)] transition-all duration-150 ease-out";
 
 export const uiCardInset =
-  "bg-app-surface-muted border border-app-border rounded-lg transition-colors duration-150 ease-out";
+  "bg-app-surface-muted/85 border border-app-border rounded-xl transition-all duration-150 ease-out";
 
 /** Typography */
-export const uiTitle = "text-base font-semibold text-app-text tracking-tight";
+export const uiTitle = "text-[15px] md:text-base font-semibold text-app-text tracking-tight leading-snug";
 
 export const uiSubtitle = "text-sm text-app-text-muted leading-relaxed";
 
 export const uiLabel =
-  "text-[11px] font-medium uppercase tracking-wide text-app-text-muted";
+  "text-[11px] font-semibold uppercase tracking-[0.08em] text-app-text-muted";
 
 export const uiCaption = "text-xs text-app-text-muted leading-snug";
 
 /** Buttons — min height + text size tránh tràn */
 export const uiBtnBase =
-  "inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3 text-sm font-medium rounded-md transition-all duration-150 ease-out cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 focus-visible:ring-offset-1 focus-visible:ring-offset-app-bg disabled:opacity-55 disabled:pointer-events-none disabled:cursor-not-allowed [&[aria-busy='true']]:opacity-75";
+  "inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3.5 text-sm font-medium rounded-lg transition-all duration-150 ease-out cursor-pointer active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed [&[aria-busy='true']]:opacity-75 shadow-[0_1px_0_rgba(255,255,255,0.35)] dark:shadow-none";
 
 export const uiBtnGhost =
-  `${uiBtnBase} border border-app-border bg-app-surface text-app-text hover:bg-app-surface-muted`;
+  `${uiBtnBase} border border-app-border bg-app-surface text-app-text hover:bg-app-surface-muted hover:border-app-border/80`;
 
 export const uiBtnPrimary =
-  `${uiBtnBase} border border-app-accent bg-app-accent text-white hover:opacity-90`;
+  `${uiBtnBase} border border-app-accent bg-app-accent text-white shadow-[0_2px_10px_rgba(15,118,110,0.26)] hover:bg-app-accent-hover hover:shadow-[0_4px_14px_rgba(15,118,110,0.28)]`;
 
 export const uiBtnSecondary =
-  `${uiBtnBase} border border-app-border bg-app-surface-muted text-app-text hover:bg-app-border/40`;
+  `${uiBtnBase} border border-app-border bg-app-surface-muted text-app-text hover:bg-app-border/35`;
 
 export const uiBtnDanger =
-  `${uiBtnBase} border border-red-600/30 bg-red-600 text-white hover:bg-red-700`;
+  `${uiBtnBase} border border-red-600/35 bg-red-600 text-white shadow-[0_2px_10px_rgba(220,38,38,0.22)] hover:bg-red-700`;
 
 /** Inputs */
 export const uiInput =
-  "w-full min-h-10 px-3 text-sm rounded-md border border-app-border bg-app-surface text-app-text placeholder:text-app-text-muted transition-colors duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-app-accent/35 focus:border-app-accent disabled:opacity-60 disabled:cursor-not-allowed";
+  "w-full min-h-10 px-3.5 text-sm rounded-lg border border-app-border bg-app-surface text-app-text placeholder:text-app-text-muted/90 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-app-accent/30 focus:ring-offset-1 focus:ring-offset-app-bg focus:border-app-accent disabled:opacity-60 disabled:cursor-not-allowed";
 
 /** Menu row (home) */
 export const uiMenuRow =
-  "w-full min-h-[52px] px-3 py-2 rounded-lg flex items-center gap-3 text-left border border-app-border bg-app-surface hover:bg-app-surface-muted transition-colors cursor-pointer touch-manipulation active:scale-[0.99]";
+  "w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-border bg-app-surface hover:bg-app-surface-muted/90 hover:border-app-border/80 transition-all cursor-pointer touch-manipulation active:scale-[0.99]";
 
 export const uiMenuRowActive =
-  "w-full min-h-[52px] px-3 py-2 rounded-lg flex items-center gap-3 text-left border border-app-accent bg-app-accent text-white shadow-sm transition-colors cursor-pointer";
+  "w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-accent bg-app-accent text-white shadow-[0_4px_14px_rgba(15,118,110,0.28)] transition-all cursor-pointer";
 
 export const uiIconBox =
-  "h-9 w-9 shrink-0 rounded-md flex items-center justify-center bg-app-surface-muted text-app-text-muted border border-app-border";
+  "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center bg-app-surface-muted text-app-text-muted border border-app-border";
 
 export const uiIconBoxActive = "h-9 w-9 shrink-0 rounded-md flex items-center justify-center bg-white/20 text-white";
 
 /** Panel (Lab sidebar, VFS, settings sections) */
 export const uiPanel =
-  "bg-app-surface border border-app-border rounded-lg md:rounded-xl p-4 shadow-sm flex flex-col min-h-0 overflow-hidden";
+  "bg-app-surface border border-app-border rounded-xl p-4 md:p-5 shadow-[0_1px_2px_rgba(17,24,39,0.05),0_10px_24px_rgba(17,24,39,0.06)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_12px_24px_rgba(0,0,0,0.24)] flex flex-col min-h-0 overflow-hidden";
 
 /** Vùng cuộn nội dung Lab Dịch — giữ flex-1 min-h-0 (không thu nhỏ chiều cao) */
 export const uiCompareStage =
-  "flex-1 min-h-0 no-callout overflow-y-auto custom-scrollbar border-y md:border border-app-border rounded-none md:rounded-lg bg-app-surface-muted/50 divide-y divide-app-border";
+  "flex-1 min-h-0 no-callout overflow-y-auto custom-scrollbar border-y md:border border-app-border rounded-none md:rounded-xl bg-app-surface-muted/55 divide-y divide-app-border";
 
 export const uiSegmentedTrack =
-  "bg-app-surface-muted p-1 rounded-lg flex border border-app-border text-xs w-full sm:w-auto shrink-0";
+  "bg-app-surface-muted p-1 rounded-xl flex border border-app-border text-xs w-full sm:w-auto shrink-0";
 
 export const uiSegmentedBtnActive =
-  "flex-1 sm:flex-initial px-3 py-2 min-h-10 rounded-md flex items-center justify-center gap-1.5 text-sm font-medium bg-app-surface text-app-text border border-app-border shadow-sm cursor-pointer";
+  "flex-1 sm:flex-initial px-3 py-2 min-h-10 rounded-lg flex items-center justify-center gap-1.5 text-sm font-medium bg-app-surface text-app-text border border-app-border shadow-[0_1px_2px_rgba(17,24,39,0.08)] cursor-pointer";
 
 export const uiSegmentedBtnIdle =
-  "flex-1 sm:flex-initial px-3 py-2 min-h-10 rounded-md flex items-center justify-center gap-1.5 text-sm font-medium text-app-text-muted hover:text-app-text cursor-pointer";
+  "flex-1 sm:flex-initial px-3 py-2 min-h-10 rounded-lg flex items-center justify-center gap-1.5 text-sm font-medium text-app-text-muted hover:text-app-text hover:bg-app-surface/60 cursor-pointer";
 
 export const uiInfoBanner =
   "shrink-0 mb-2 p-3 rounded-lg border border-app-accent/30 bg-app-accent/10 text-app-text text-xs leading-relaxed flex items-start justify-between gap-3";
 
 export const uiInlineFeedbackBase =
-  "rounded-md border px-3 py-2 text-[11px] leading-relaxed";
+  "rounded-lg border px-3.5 py-2.5 text-[11px] leading-relaxed";
 
 export const uiInlineFeedbackInfo =
   `${uiInlineFeedbackBase} border-app-accent/25 bg-app-accent/10 text-app-text`;
@@ -110,13 +110,13 @@ export const uiIconHeader =
   "p-2.5 bg-app-accent/10 text-app-accent rounded-lg shrink-0";
 
 export const uiSection =
-  "bg-app-surface-muted/80 p-4 border-y md:border border-app-border rounded-none md:rounded-lg space-y-4 shadow-sm";
+  "bg-app-surface-muted/80 p-4 md:p-5 border-y md:border border-app-border rounded-none md:rounded-xl space-y-4 shadow-[0_1px_2px_rgba(17,24,39,0.05)]";
 
 export const uiFieldLabel =
   "block text-[11px] text-app-text-muted mb-1 font-bold uppercase tracking-wider";
 
 export const uiBannerHero =
-  "bg-gradient-to-r from-app-accent to-app-accent-hover text-white p-6 rounded-lg border border-app-border shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4";
+  "bg-gradient-to-r from-app-accent to-app-accent-hover text-white p-5 md:p-6 rounded-xl border border-app-border shadow-[0_8px_20px_rgba(15,118,110,0.26)] flex flex-col md:flex-row md:items-center justify-between gap-4";
 
 export const uiToggleTrack =
   "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none";

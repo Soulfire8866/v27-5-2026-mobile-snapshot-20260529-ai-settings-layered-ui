@@ -8,26 +8,26 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Kindle-inspired app chrome */
-  --color-app-bg: #f4f1ea;
-  --color-app-surface: #ffffff;
-  --color-app-surface-muted: #ebe8e1;
-  --color-app-text: #1c1c1c;
-  --color-app-text-muted: #5a5a5a;
-  --color-app-border: #d1cdc4;
-  --color-app-accent: #0f6e6e;
-  --color-app-accent-hover: #0a5555;
+  /* Visual PA-1: semantic palette + depth contrast */
+  --color-app-bg: #f6f2ea;
+  --color-app-surface: #fffdf8;
+  --color-app-surface-muted: #f0eae0;
+  --color-app-text: #1d1a16;
+  --color-app-text-muted: #615a50;
+  --color-app-border: #d7cfc2;
+  --color-app-accent: #0f766e;
+  --color-app-accent-hover: #0b5f59;
 }
 
 .dark {
-  --color-app-bg: #121212;
-  --color-app-surface: #1c1c1c;
-  --color-app-surface-muted: #262626;
-  --color-app-text: #e8e6e3;
-  --color-app-text-muted: #a3a3a3;
-  --color-app-border: #3a3a3a;
-  --color-app-accent: #5eb8b8;
-  --color-app-accent-hover: #7ecece;
+  --color-app-bg: #101216;
+  --color-app-surface: #171b22;
+  --color-app-surface-muted: #202631;
+  --color-app-text: #ece7de;
+  --color-app-text-muted: #aba497;
+  --color-app-border: #353d4a;
+  --color-app-accent: #67c3bb;
+  --color-app-accent-hover: #86d9d2;
 }
 
 @layer utilities {
@@ -51,6 +51,8 @@
   body {
     background-color: var(--color-app-bg);
     color: var(--color-app-text);
+    line-height: 1.45;
+    letter-spacing: 0.005em;
   }
 }
 
