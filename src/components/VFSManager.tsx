@@ -96,6 +96,7 @@ export default function VFSManager({
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string>("");
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [treeSearchQuery, setTreeSearchQuery] = useState("");
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({ "luu_tru": true });
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -355,6 +356,7 @@ export default function VFSManager({
   const vfsTree = buildVFSTree();
   const backupCount = Object.keys(backupFiles).length;
   const isFileEditorMode = viewMode === "fileEditor";
+  const normalizedTreeSearchQuery = treeSearchQuery.trim().toLowerCase();
 
   const formatBytes = (bytes: number): string => {
     if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -416,6 +418,69 @@ export default function VFSManager({
   };
 
   const activeNode = activeFilePath ? findNodeByPath(vfsTree, activeFilePath) : null;
+  const hasUnsavedChanges = !!(
+    activeFilePath &&
+    activeNode &&
+    activeFileContent !== (activeNode.content || "")
+  );
+
+  useEffect(() => {
+    if (!isFileEditorMode || !hasUnsavedChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Một số trình duyệt vẫn cần returnValue để bật cảnh báo.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isFileEditorMode, hasUnsavedChanges]);
+
+  const confirmDiscardUnsavedChanges = (nextActionLabel: string): boolean => {
+    if (!hasUnsavedChanges) return true;
+    return confirm(
+      `Bạn có thay đổi chưa lưu trong file hiện tại.\n\nBạn có muốn bỏ thay đổi để ${nextActionLabel}?`
+    );
+  };
+
+  const isJsonValidationEnabled = !!(
+    activeNode &&
+    activeNode.type === "file" &&
+    (activeNode.name.toLowerCase().endsWith(".json") ||
+      activeNode.dataType === "settings" ||
+      activeNode.dataType === "dict" ||
+      activeNode.dataType === "pronouns" ||
+      activeNode.dataType === "novel" ||
+      activeNode.dataType === "backup")
+  );
+
+  const validateJsonContentForNode = (node: VFSNode, content: string): void => {
+    const parsed = JSON.parse(content);
+    if (node.dataType === "settings") {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("settings phải là object JSON.");
+      }
+      return;
+    }
+    if (node.dataType === "dict" || node.dataType === "pronouns") {
+      if (!Array.isArray(parsed)) {
+        throw new Error(`${node.dataType} phải là mảng JSON.`);
+      }
+      return;
+    }
+    if (node.dataType === "novel") {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("meta truyện phải là object JSON.");
+      }
+      return;
+    }
+    if (node.dataType === "backup") {
+      if (!Array.isArray(parsed)) {
+        throw new Error("snapshot backup phải là mảng JSON.");
+      }
+      return;
+    }
+    // Default: parse thành công là hợp lệ.
+  };
 
   // Toggle expanded/collapsed state for tree folder nodes
   const toggleNodeExpand = (path: string) => {
@@ -427,10 +492,24 @@ export default function VFSManager({
 
   // Select file helper to view/edit
   const handleSelectFile = (node: VFSNode) => {
-    if (node.type === "file") {
-      setActiveFilePath(node.path);
-      setActiveFileContent(node.content || "");
+    if (node.type !== "file") return;
+    if (activeFilePath === node.path) return;
+    if (!confirmDiscardUnsavedChanges("mở file khác")) return;
+    setActiveFilePath(node.path);
+    setActiveFileContent(node.content || "");
+    setEditorError(null);
+  };
+
+  const handleValidateJson = () => {
+    if (!activeNode || activeNode.type !== "file") return;
+    try {
+      validateJsonContentForNode(activeNode, activeFileContent);
       setEditorError(null);
+      onAlert("Validate JSON", "JSON hợp lệ theo định dạng của file hiện tại.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setEditorError(message);
+      onAlert("Validate JSON thất bại", message);
     }
   };
 
@@ -689,6 +768,7 @@ export default function VFSManager({
 
   // Open backup folder and highlight the newly selected file
   const handleOpenBackupFolder = (fileName: string) => {
+    if (!confirmDiscardUnsavedChanges("mở file backup")) return;
     setViewMode("fileEditor");
     setExpandedNodes((prev) => ({
       ...prev,
@@ -1104,9 +1184,32 @@ export default function VFSManager({
   };
 
   // Render file tree recursively
+  const filterTreeNodeByQuery = (node: VFSNode, query: string): VFSNode | null => {
+    if (!query) return node;
+    const selfMatch =
+      node.name.toLowerCase().includes(query) ||
+      node.path.toLowerCase().includes(query);
+    if (node.type === "file") {
+      return selfMatch ? node : null;
+    }
+    const filteredChildren = (node.children || [])
+      .map((child) => filterTreeNodeByQuery(child, query))
+      .filter((child): child is VFSNode => !!child);
+    if (selfMatch || filteredChildren.length > 0) {
+      return { ...node, children: filteredChildren };
+    }
+    return null;
+  };
+
+  const filteredTreeRoot = React.useMemo(() => {
+    return filterTreeNodeByQuery(vfsTree, normalizedTreeSearchQuery);
+  }, [vfsTree, normalizedTreeSearchQuery]);
+
+  const isTreeSearching = normalizedTreeSearchQuery.length > 0;
+
   const renderTreeNodes = (node: VFSNode, depth = 0) => {
     const isFolder = node.type === "folder";
-    const isExpanded = expandedNodes[node.path];
+    const isExpanded = isTreeSearching ? true : expandedNodes[node.path];
     const isSelected = activeFilePath === node.path;
 
     return (
@@ -1347,6 +1450,7 @@ export default function VFSManager({
             <button
               type="button"
               onClick={() => {
+                if (!confirmDiscardUnsavedChanges("quay lại màn sao lưu")) return;
                 setViewMode("backup");
                 setActiveFilePath(null);
                 setEditorError(null);
@@ -1404,6 +1508,24 @@ export default function VFSManager({
               </p>
             </div>
 
+            <div className="shrink-0 mb-2 flex items-center gap-2">
+              <input
+                value={treeSearchQuery}
+                onChange={(e) => setTreeSearchQuery(e.target.value)}
+                placeholder="Tìm nhanh theo tên file/thư mục..."
+                className={`${uiInput} h-8 text-[11px] flex-1`}
+              />
+              {treeSearchQuery.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setTreeSearchQuery("")}
+                  className={`${uiBtnGhost} h-8 px-2 text-[10px] font-bold`}
+                >
+                  Xóa
+                </button>
+              ) : null}
+            </div>
+
             <details className={`shrink-0 mb-2 ${uiCaption} text-[10px]`}>
               <summary className="cursor-pointer font-bold text-app-text select-none">Ý nghĩa từng thư mục</summary>
               <ul className="mt-1.5 space-y-0.5 pl-3 list-disc leading-relaxed">
@@ -1415,7 +1537,13 @@ export default function VFSManager({
             </details>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-0.5 min-h-0">
-              {renderTreeNodes(vfsTree)}
+              {filteredTreeRoot ? (
+                renderTreeNodes(filteredTreeRoot)
+              ) : (
+                <div className={`${uiCaption} text-[10.5px] py-2`}>
+                  Không tìm thấy mục phù hợp với từ khóa hiện tại.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1426,6 +1554,7 @@ export default function VFSManager({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!confirmDiscardUnsavedChanges("bỏ chọn file hiện tại")) return;
                       setActiveFilePath(null);
                       setEditorError(null);
                     }}
@@ -1454,6 +1583,16 @@ export default function VFSManager({
                     >
                       <Download className="w-4 h-4 text-app-text-muted" />
                     </button>
+                    {isJsonValidationEnabled && (
+                      <button
+                        type="button"
+                        onClick={handleValidateJson}
+                        className={`${uiBtnGhost} h-9 px-2.5 text-[10px] font-bold`}
+                        title="Kiểm tra JSON"
+                      >
+                        Validate JSON
+                      </button>
+                    )}
                     {activeNode?.dataType !== "backup" && (
                       <button
                         type="button"
@@ -1468,7 +1607,14 @@ export default function VFSManager({
                 </div>
 
                 <div className={`${uiInfoBanner} mb-3 p-2.5 shrink-0 border-sky-500/20 bg-sky-500/8`}>
-                  <p className="text-[10px] font-mono text-app-accent truncate mb-1 w-full">{activeFilePath}</p>
+                  <div className="mb-1 w-full flex items-center gap-2 min-w-0">
+                    <p className="text-[10px] font-mono text-app-accent truncate flex-1 min-w-0">{activeFilePath}</p>
+                    {hasUnsavedChanges ? (
+                      <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                        Chưa lưu
+                      </span>
+                    ) : null}
+                  </div>
                   <p className={`${uiCaption} text-[10.5px] flex gap-1.5 text-app-text`}>
                     <HelpCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-500" />
                     {getFileTypeHint(activeNode)}

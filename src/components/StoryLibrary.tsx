@@ -581,13 +581,13 @@ export default function StoryLibrary({
               <button
                 type="button"
                 onClick={() => setShowToolsModal(false)}
-                className={`absolute top-3 right-3 z-10 ${uiBtnGhost} p-2 min-h-0 min-w-0 border-0`}
+                className={`absolute right-3 z-10 ${uiBtnGhost} p-2 min-h-0 min-w-0 border-0 top-[max(env(safe-area-inset-top,0px),0.75rem)] sm:top-3`}
                 title="Đóng bảng"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="shrink-0 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border pr-12">
+              <div className="lab-chrome-safe-top shrink-0 px-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border pr-12">
                 <div className="flex items-center gap-2">
                   <MoreVertical className="w-5 h-5 text-app-accent shrink-0" />
                   <div className="min-w-0">
