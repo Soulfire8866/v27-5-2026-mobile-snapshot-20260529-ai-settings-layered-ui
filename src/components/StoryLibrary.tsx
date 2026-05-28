@@ -624,12 +624,12 @@ export default function StoryLibrary({
       {showToolsModal &&
         createPortal(
           <div
-            className="fixed inset-0 z-[200] flex flex-col bg-app-surface sm:bg-black/60 sm:backdrop-blur-sm sm:items-center sm:justify-center sm:p-4 animate-fade-in"
+            className="fixed inset-0 z-[200] flex flex-col bg-app-surface sm:app-modal-overlay sm:items-center sm:justify-center sm:p-4 animate-fade-in"
             id="library-tools-and-loaders-modal"
             role="dialog"
             aria-modal="true"
           >
-            <div className={`relative flex flex-col flex-1 min-h-0 w-full h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[min(92dvh,880px)] sm:flex-none sm:max-w-2xl ${uiPanel} sm:rounded-xl sm:shadow-2xl text-app-text !p-0`}>
+            <div className={`app-sheet-handle relative flex flex-col flex-1 min-h-0 w-full h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[min(92dvh,880px)] sm:flex-none sm:max-w-2xl ${uiPanel} sm:rounded-xl sm:shadow-2xl text-app-text !p-0`}>
               <button
                 type="button"
                 onClick={() => setShowToolsModal(false)}
@@ -884,13 +884,13 @@ export default function StoryLibrary({
       {/* Custom Deletion Dialog Modal */}
       {novelToDelete && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-54 select-none animate-fade-in"
+          className="fixed inset-0 app-modal-overlay flex items-center justify-center p-4 z-54 select-none animate-fade-in"
           id="delete-option-dialog"
           role="dialog"
           aria-modal="true"
           aria-label="Xác nhận xóa tác phẩm"
         >
-          <div className={`${uiPanel} app-chrome-safe-top app-chrome-safe-bottom p-6 shadow-2xl max-w-lg w-full animate-scale-up text-app-text max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
+          <div className={`${uiPanel} app-sheet-handle app-chrome-safe-top app-chrome-safe-bottom p-6 shadow-2xl max-w-lg w-full animate-scale-up text-app-text max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} text-sm flex items-center gap-2 uppercase`}>
               <Trash2 className="w-5 h-5 text-red-500 shrink-0" />
               XÁC NHẬN XÓA TÁC PHẨM

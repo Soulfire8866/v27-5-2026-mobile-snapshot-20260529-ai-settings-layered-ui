@@ -17,6 +17,13 @@
   --color-app-border: #d7cfc2;
   --color-app-accent: #0f766e;
   --color-app-accent-hover: #0b5f59;
+  --color-app-success: #0f9f67;
+  --color-app-warning: #d88909;
+  --color-app-danger: #d64545;
+  --ease-app: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-app-fast: 140ms;
+  --dur-app-base: 200ms;
+  --dur-app-slow: 280ms;
 }
 
 .dark {
@@ -28,6 +35,9 @@
   --color-app-border: #353d4a;
   --color-app-accent: #67c3bb;
   --color-app-accent-hover: #86d9d2;
+  --color-app-success: #4fd49f;
+  --color-app-warning: #efb152;
+  --color-app-danger: #ff7b7b;
 }
 
 @layer utilities {
@@ -42,6 +52,79 @@
   .border-app-accent { border-color: var(--color-app-accent); }
   .text-app-accent { color: var(--color-app-accent); }
   .ring-app-accent { --tw-ring-color: color-mix(in srgb, var(--color-app-accent) 35%, transparent); }
+  .bg-app-success { background-color: var(--color-app-success); }
+  .bg-app-warning { background-color: var(--color-app-warning); }
+  .bg-app-danger { background-color: var(--color-app-danger); }
+  .app-chip {
+    border: 1px solid color-mix(in srgb, var(--color-app-border) 92%, transparent);
+    background: color-mix(in srgb, var(--color-app-surface-muted) 74%, var(--color-app-surface));
+    border-radius: 9999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-app-text-muted);
+  }
+  .app-modal-overlay {
+    background: radial-gradient(
+      120% 120% at 50% 0%,
+      color-mix(in srgb, var(--color-app-accent) 18%, transparent) 0%,
+      rgba(0, 0, 0, 0.58) 72%
+    );
+    backdrop-filter: blur(7px);
+  }
+  .app-sheet-handle::before {
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 0.3rem;
+    border-radius: 9999px;
+    margin: 0 auto 0.8rem;
+    background: color-mix(in srgb, var(--color-app-text-muted) 35%, transparent);
+  }
+  .app-pressable {
+    position: relative;
+    overflow: hidden;
+    transition-duration: var(--dur-app-base);
+    transition-timing-function: var(--ease-app);
+  }
+  .app-pressable::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(circle at center, color-mix(in srgb, var(--color-app-accent) 24%, transparent) 0%, transparent 56%);
+    opacity: 0;
+    transition: opacity var(--dur-app-fast) var(--ease-app);
+  }
+  .app-pressable:active::after {
+    opacity: 0.22;
+  }
+  .app-elevated-surface {
+    box-shadow:
+      0 1px 2px rgba(17, 24, 39, 0.06),
+      0 10px 26px rgba(17, 24, 39, 0.08);
+  }
+  .dark .app-elevated-surface {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.45),
+      0 12px 28px rgba(0, 0, 0, 0.34);
+  }
+  .app-tab-pill {
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--color-app-border) 90%, transparent);
+    background: color-mix(in srgb, var(--color-app-surface) 88%, transparent);
+    color: var(--color-app-text);
+    transition: all var(--dur-app-fast) var(--ease-app);
+  }
+  .app-tab-pill[data-active="true"] {
+    border-color: color-mix(in srgb, var(--color-app-accent) 72%, transparent);
+    background: color-mix(in srgb, var(--color-app-accent) 16%, var(--color-app-surface));
+    color: var(--color-app-accent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-app-accent) 22%, transparent);
+  }
 }
 
 @layer base {
@@ -93,6 +176,9 @@
 }
 .animate-slide-up {
   animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-fade-up-soft {
+  animation: fadeIn 0.22s var(--ease-app) forwards;
 }
 
 /* Phòng Đọc mobile — safe chrome (B-Reader) */
@@ -187,4 +273,15 @@
 .aligned-row-editing {
   border: 1.5px solid var(--color-app-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-app-accent) 18%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -15,7 +15,7 @@ export default function TranslationErrorPanel({
 }: TranslationErrorPanelProps) {
   return (
     <div
-      className={`w-full shrink-0 rounded-lg border border-red-600/35 bg-red-600/10 p-3 sm:p-4 max-h-[min(50vh,360px)] overflow-y-auto custom-scrollbar ${className}`}
+      className={`w-full shrink-0 rounded-xl border border-red-600/30 bg-red-600/10 p-3.5 sm:p-4 app-elevated-surface max-h-[min(50vh,360px)] overflow-y-auto custom-scrollbar ${className}`}
       role="alert"
     >
       <div className="flex items-start gap-2.5">

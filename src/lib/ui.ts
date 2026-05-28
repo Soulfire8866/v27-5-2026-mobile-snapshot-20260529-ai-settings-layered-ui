@@ -9,12 +9,12 @@ export const uiShell =
   "min-h-screen flex flex-col font-sans antialiased bg-app-bg text-app-text selection:bg-app-accent/20 pb-[env(safe-area-inset-bottom,0px)]";
 
 export const uiHeader =
-  "sticky top-0 z-40 shrink-0 px-3 md:px-4 flex items-center justify-between gap-3 border-b border-app-border/85 bg-app-surface/92 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] dark:shadow-[0_1px_0_rgba(255,255,255,0.04)] pt-[env(safe-area-inset-top,0px)] min-h-[calc(3.25rem+env(safe-area-inset-top,0px))]";
+  "sticky top-0 z-40 shrink-0 px-3 md:px-4 flex items-center justify-between gap-3 border-b border-app-border/85 bg-app-surface/90 backdrop-blur-xl shadow-[0_1px_0_rgba(0,0,0,0.04)] dark:shadow-[0_1px_0_rgba(255,255,255,0.04)] pt-[env(safe-area-inset-top,0px)] min-h-[calc(3.25rem+env(safe-area-inset-top,0px))]";
 
 export const uiMain = "flex-1 w-full mx-auto min-h-0 flex flex-col custom-scrollbar";
 
 export const uiCard =
-  "bg-app-surface border border-app-border rounded-xl shadow-[0_1px_2px_rgba(17,24,39,0.05),0_8px_18px_rgba(17,24,39,0.04)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_10px_22px_rgba(0,0,0,0.25)] transition-all duration-150 ease-out";
+  "bg-app-surface border border-app-border rounded-xl app-elevated-surface transition-all duration-150 ease-out";
 
 export const uiCardInset =
   "bg-app-surface-muted/85 border border-app-border rounded-xl transition-all duration-150 ease-out";
@@ -31,7 +31,7 @@ export const uiCaption = "text-xs text-app-text-muted leading-snug";
 
 /** Buttons — min height + text size tránh tràn */
 export const uiBtnBase =
-  "inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3.5 text-sm font-medium rounded-lg transition-all duration-150 ease-out cursor-pointer active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed [&[aria-busy='true']]:opacity-75 shadow-[0_1px_0_rgba(255,255,255,0.35)] dark:shadow-none";
+  "app-pressable inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3.5 text-sm font-medium rounded-lg transition-all duration-150 ease-out cursor-pointer active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed [&[aria-busy='true']]:opacity-75 shadow-[0_1px_0_rgba(255,255,255,0.35)] dark:shadow-none";
 
 export const uiBtnGhost =
   `${uiBtnBase} border border-app-border bg-app-surface text-app-text hover:bg-app-surface-muted hover:border-app-border/80`;
@@ -51,13 +51,13 @@ export const uiInput =
 
 /** Menu row (home) */
 export const uiMenuRow =
-  "w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-border bg-app-surface hover:bg-app-surface-muted/90 hover:border-app-border/80 transition-all cursor-pointer touch-manipulation active:scale-[0.99]";
+  "app-pressable w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-border bg-app-surface hover:bg-app-surface-muted/90 hover:border-app-border/80 transition-all cursor-pointer touch-manipulation active:scale-[0.99]";
 
 export const uiMenuRowActive =
-  "w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-accent bg-app-accent text-white shadow-[0_4px_14px_rgba(15,118,110,0.28)] transition-all cursor-pointer";
+  "app-pressable w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-accent bg-app-accent text-white shadow-[0_4px_14px_rgba(15,118,110,0.28)] transition-all cursor-pointer";
 
 export const uiIconBox =
-  "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center bg-app-surface-muted text-app-text-muted border border-app-border";
+  "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center bg-app-surface-muted text-app-text-muted border border-app-border transition-transform duration-150 ease-out group-hover:scale-105";
 
 export const uiIconBoxActive = "h-9 w-9 shrink-0 rounded-md flex items-center justify-center bg-white/20 text-white";
 
@@ -117,6 +117,11 @@ export const uiFieldLabel =
 
 export const uiBannerHero =
   "bg-gradient-to-r from-app-accent to-app-accent-hover text-white p-5 md:p-6 rounded-xl border border-app-border shadow-[0_8px_20px_rgba(15,118,110,0.26)] flex flex-col md:flex-row md:items-center justify-between gap-4";
+
+export const uiTabPill =
+  "app-pressable app-tab-pill inline-flex items-center justify-center min-h-9 px-3 text-xs font-semibold uppercase tracking-wide";
+
+export const uiTabPillActive = `${uiTabPill} data-[active=true]:font-bold`;
 
 export const uiToggleTrack =
   "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none";
