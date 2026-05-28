@@ -55,6 +55,10 @@ import {
   uiInfoBanner,
   uiSection,
   uiFieldLabel,
+  uiInlineFeedbackInfo,
+  uiInlineFeedbackSuccess,
+  uiInlineFeedbackWarning,
+  uiInlineFeedbackDanger,
 } from "../lib/ui";
 
 interface VFSNode {
@@ -103,6 +107,10 @@ export default function VFSManager({
   const [isExportingTranslation, setIsExportingTranslation] = useState(false);
   const [isImportingTranslation, setIsImportingTranslation] = useState(false);
   const [isDeletingExportedFile, setIsDeletingExportedFile] = useState<string | null>(null);
+  const [panelFeedback, setPanelFeedback] = useState<{
+    tone: "info" | "success" | "warning" | "danger";
+    message: string;
+  } | null>(null);
   
   // Stored page translations fetched directly from IndexedDB
   const [pageTranslations, setPageTranslations] = useState<Record<string, string[]>>({});
@@ -358,6 +366,16 @@ export default function VFSManager({
   const isFileEditorMode = viewMode === "fileEditor";
   const normalizedTreeSearchQuery = treeSearchQuery.trim().toLowerCase();
 
+  const panelFeedbackClassName = panelFeedback
+    ? panelFeedback.tone === "success"
+      ? uiInlineFeedbackSuccess
+      : panelFeedback.tone === "warning"
+      ? uiInlineFeedbackWarning
+      : panelFeedback.tone === "danger"
+      ? uiInlineFeedbackDanger
+      : uiInlineFeedbackInfo
+    : null;
+
   const formatBytes = (bytes: number): string => {
     if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
     if (bytes < 1024) return `${bytes} B`;
@@ -527,6 +545,7 @@ export default function VFSManager({
         if (typeof parsed !== "object") throw new Error("Cú pháp tệp cấu hình phải là một đối tượng JSON.");
         setSettings(parsed);
         await saveValue("settings", parsed);
+        setPanelFeedback({ tone: "success", message: "Đã lưu file cấu hình hệ thống vào app." });
         onAlert("Cây thư mục", "Lưu cấu hình hệ thống hành trình đọc giả thành công!");
       } 
       else if (node.dataType === "dict") {
@@ -534,6 +553,7 @@ export default function VFSManager({
         if (!Array.isArray(parsed)) throw new Error("Cú pháp từ điển cá nhân tuyệt đối phải là một danh sách JSON.");
         setDictItems(parsed);
         await saveValue("dictItems", parsed);
+        setPanelFeedback({ tone: "success", message: "Đã lưu file từ điển riêng vào app." });
         onAlert("Cây thư mục", "Đã lưu thay đổi từ điển riêng chuẩn xác vào bộ lưu trữ.");
       } 
       else if (node.dataType === "pronouns") {
@@ -541,6 +561,7 @@ export default function VFSManager({
         if (!Array.isArray(parsed)) throw new Error("Bảng ánh xạ đại xưng hô bắt buộc phải cấu hình ở dạng mảng JSON.");
         setPronounMappings(parsed);
         await saveValue("pronounMappings", parsed);
+        setPanelFeedback({ tone: "success", message: "Đã lưu file bảng xưng hô vào app." });
         onAlert("Cây thư mục", "Lưu bảng nhân xưng văn học thành công.");
       } 
       else if (node.dataType === "novel") {
@@ -565,6 +586,7 @@ export default function VFSManager({
 
         setNovels(updated);
         await saveValue("novels", updated);
+        setPanelFeedback({ tone: "success", message: "Đã lưu metadata truyện." });
         onAlert("Cây thư mục", "Lưu thay đổi metadata tác phẩm hoàn tất!");
       } 
       else if (node.dataType === "chapter_src") {
@@ -583,6 +605,7 @@ export default function VFSManager({
 
         setNovels(updated);
         await saveValue("novels", updated);
+        setPanelFeedback({ tone: "success", message: "Đã lưu chương Hán văn gốc." });
         onAlert("Cây thư mục", "Cập nhật Hán văn gốc của chương thành công!");
       } 
       else if (node.dataType === "chapter_trans") {
@@ -606,6 +629,7 @@ export default function VFSManager({
         await deleteValue(`page_trans_${targetChapId}`);
         loadIndexedDBExtra();
 
+        setPanelFeedback({ tone: "success", message: "Đã lưu chương dịch và làm mới cache trang liên quan." });
         onAlert("Cây thư mục", "Lưu bản dịch hoàn thiện chương và hủy các mảnh cache trang thành công!");
       } 
       else if (node.dataType === "page_trans") {
@@ -619,12 +643,14 @@ export default function VFSManager({
 
           await saveValue(`page_trans_${targetChapId}`, updatedPages);
           loadIndexedDBExtra();
+          setPanelFeedback({ tone: "success", message: `Đã lưu trang dịch ${pIdx + 1} của chương hiện tại.` });
           onAlert("Cây thư mục", `Cập nhật nội dung dịch thuật trang lẻ (${pIdx + 1}) thành công!`);
         }
       } else {
         throw new Error("Không thể thao tác ghi đè trực tiếp lên tệp hệ thống này.");
       }
     } catch (err: any) {
+      setPanelFeedback({ tone: "danger", message: err.message || "Lỗi ghi dữ liệu. Kiểm tra lại định dạng file." });
       setEditorError(err.message || "Định dạng JSON hỏng hoặc gặp lỗi ghi luồng tệp.");
     }
   };
@@ -655,6 +681,7 @@ export default function VFSManager({
             nativeResult.uri ? `URI: ${nativeResult.uri}\n` : ""
           }Dung lượng ghi: ${nativeResult.bytesWritten ?? content.length} bytes`
         );
+        setPanelFeedback({ tone: "success", message: `Đã lưu file "${fileName}" thành công.` });
       }
       return true;
     }
@@ -673,6 +700,7 @@ export default function VFSManager({
         await writable.write(content);
         await writable.close();
         onAlert("Lưu thành công", `Đã lưu tệp "${fileName}" trực tiếp vào thư mục tự chọn!`);
+        setPanelFeedback({ tone: "success", message: `Đã lưu file "${fileName}" qua picker trình duyệt.` });
         return true;
       } catch (err: any) {
         if (err.name === "AbortError") {
@@ -703,6 +731,7 @@ export default function VFSManager({
             nativeResult.uri ? `URI: ${nativeResult.uri}\n` : ""
           }Dung lượng ghi: ${nativeResult.bytesWritten ?? blob.size} bytes`
         );
+        setPanelFeedback({ tone: "success", message: `Đã lưu ZIP "${suggestedName}" thành công.` });
       }
       return true;
     }
@@ -721,6 +750,7 @@ export default function VFSManager({
       await writable.write(blob);
       await writable.close();
       onAlert("Kết xuất thành công", "Đã lưu bản sao lưu .ZIP trực tiếp vào thư mục tùy chọn của bạn!");
+      setPanelFeedback({ tone: "success", message: `Đã lưu ZIP "${suggestedName}" qua picker trình duyệt.` });
       return true;
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -736,6 +766,7 @@ export default function VFSManager({
   const handleDownloadFile = async (fileName: string, content: string) => {
     const success = await handleDownloadWithPicker(fileName, content);
     if (success) return;
+    setPanelFeedback({ tone: "warning", message: `Không thể lưu tệp "${fileName}" trên thiết bị.` });
     onAlert("Không lưu được", `Không thể lưu tệp "${fileName}" trên thiết bị.`);
   };
 
@@ -748,6 +779,7 @@ export default function VFSManager({
     const backupKey = `vfs_backup_${timestamp}`;
     
     setIsLoading(true);
+    setPanelFeedback({ tone: "info", message: "Đang tạo snapshot trong máy..." });
     try {
       const db = await dbPromise;
       const allRecords = await db.getAll("settings");
@@ -758,8 +790,10 @@ export default function VFSManager({
       await loadIndexedDBExtra();
       
       setNewBackupAlert({ fileName, backupKey });
+      setPanelFeedback({ tone: "success", message: `Đã tạo snapshot "${fileName}".` });
       onAlert("Sao lưu", `Đã tự động tạo tệp sao lưu: ${fileName} trong thư mục /backups/!`);
     } catch (err: any) {
+      setPanelFeedback({ tone: "danger", message: err.message || "Lỗi tạo snapshot trong máy." });
       alert("Lỗi sao lưu hệ thống: " + err.message);
     } finally {
       setIsLoading(false);
@@ -793,6 +827,7 @@ export default function VFSManager({
     if (confirm("Bạn có chắc chắn muốn xóa vĩnh viễn bản sao lưu nhanh này không?")) {
       await deleteValue(backupKey);
       loadIndexedDBExtra();
+      setPanelFeedback({ tone: "success", message: "Đã xóa snapshot khỏi máy." });
       onAlert("Bản sao lưu", "Đã xóa bản sao lưu thành công.");
     }
   };
@@ -805,6 +840,10 @@ export default function VFSManager({
     try {
       const deleted = await deleteNativeExportedFile(entry.uri);
       if (!deleted) {
+        setPanelFeedback({
+          tone: "warning",
+          message: "Không thể xóa file vật lý. Có thể file đã bị di chuyển/xóa thủ công hoặc URI hết quyền.",
+        });
         onAlert(
           "Không xóa được file",
           "Không thể xóa file vật lý. Có thể URI đã hết quyền hoặc file đã bị di chuyển/xóa thủ công."
@@ -813,8 +852,10 @@ export default function VFSManager({
       }
       const updated = await removeExportedFileById(entry.id);
       setExportedFiles(updated);
+      setPanelFeedback({ tone: "success", message: `Đã xóa file vật lý "${entry.fileName}" và cập nhật danh sách.` });
       onAlert("Đã xóa file", `Đã xóa "${entry.fileName}" khỏi thiết bị.`);
     } catch (err: unknown) {
+      setPanelFeedback({ tone: "danger", message: err instanceof Error ? err.message : String(err) });
       onAlert("Lỗi xóa file", err instanceof Error ? err.message : String(err));
     } finally {
       setIsDeletingExportedFile(null);
@@ -828,8 +869,10 @@ export default function VFSManager({
     try {
       const updated = await removeExportedFileById(entry.id);
       setExportedFiles(updated);
+      setPanelFeedback({ tone: "success", message: `Đã gỡ "${entry.fileName}" khỏi danh sách theo dõi.` });
       onAlert("Đã gỡ khỏi danh sách", `"${entry.fileName}" đã được gỡ khỏi danh sách theo dõi.`);
     } catch (err: unknown) {
+      setPanelFeedback({ tone: "danger", message: err instanceof Error ? err.message : String(err) });
       onAlert("Lỗi thao tác", err instanceof Error ? err.message : String(err));
     }
   };
@@ -877,6 +920,7 @@ export default function VFSManager({
 
   const handleExportTranslationBackup = async () => {
     setIsExportingTranslation(true);
+    setPanelFeedback({ tone: "info", message: "Đang đóng gói data dịch..." });
     try {
       const { blob, manifest, fileName } = await buildTranslationBackupZip(novels);
       const picked = await downloadBlobWithFallback(blob, fileName, (debugMessage) => {
@@ -887,7 +931,15 @@ export default function VFSManager({
         "Sao lưu data dịch",
         `Đã xuất ${manifest.novelCount} truyện · ${manifest.chapterCount} chương đã dịch Lab (không gồm cấu hình).`
       );
+      setPanelFeedback({
+        tone: "success",
+        message: `Đã lưu data dịch: ${manifest.novelCount} truyện · ${manifest.chapterCount} chương.`,
+      });
     } catch (err: unknown) {
+      setPanelFeedback({
+        tone: "danger",
+        message: err instanceof Error ? err.message : String(err),
+      });
       onAlert(
         "Không xuất được",
         err instanceof Error ? err.message : String(err)
@@ -901,8 +953,13 @@ export default function VFSManager({
     const file = e.target.files?.[0];
     if (!file) return;
     setIsImportingTranslation(true);
+    setPanelFeedback({ tone: "info", message: `Đang nạp data dịch từ "${file.name}"...` });
     try {
       await onImportTranslationBackup(file);
+      setPanelFeedback({ tone: "success", message: `Đã nạp xong data dịch từ "${file.name}".` });
+    } catch (err: unknown) {
+      setPanelFeedback({ tone: "danger", message: err instanceof Error ? err.message : String(err) });
+      onAlert("Không nạp được data dịch", err instanceof Error ? err.message : String(err));
     } finally {
       setIsImportingTranslation(false);
       if (e.target) e.target.value = "";
@@ -912,6 +969,7 @@ export default function VFSManager({
   // Export lightweight system backup ZIP (without heavy books/backups payload)
   const handleExportFullZIP = async () => {
     setIsExporting(true);
+    setPanelFeedback({ tone: "info", message: "Đang đóng gói ZIP cấu hình nhẹ..." });
     try {
       const zip = new JSZip();
       zip.file("settings/cau_hinh_he_thong.json", JSON.stringify(settings, null, 2));
@@ -936,9 +994,11 @@ export default function VFSManager({
 
       const success = await handleDownloadBlobWithPicker(zipBlob, suggestedName);
       if (!success) {
+        setPanelFeedback({ tone: "warning", message: "Không thể lưu ZIP cấu hình nhẹ trên thiết bị hiện tại." });
         onAlert("Không lưu được", "Không thể lưu ZIP cấu hình nhẹ.");
       }
     } catch (err: any) {
+      setPanelFeedback({ tone: "danger", message: err.message || "Lỗi nén ZIP cấu hình." });
       alert("Lỗi nén thư mục: " + err.message);
     } finally {
       setIsExporting(false);
@@ -966,6 +1026,7 @@ export default function VFSManager({
     }
 
     setIsImporting(true);
+    setPanelFeedback({ tone: "info", message: `Đang đọc file ZIP "${file.name}"...` });
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(file);
@@ -976,6 +1037,10 @@ export default function VFSManager({
           "Sai loại file ZIP",
           "Đây là file «data dịch» (translation_data). Hãy dùng mục «Nạp data dịch» bên dưới — không dùng «Nạp file ZIP» đầy đủ."
         );
+        setPanelFeedback({
+          tone: "warning",
+          message: "Bạn đang chọn nhầm loại ZIP. Hãy dùng mục «Nạp data dịch» cho translation_data.",
+        });
         return;
       }
 
@@ -1172,10 +1237,12 @@ export default function VFSManager({
           await saveValue(`page_trans_${chapId}`, cleanedText);
         }
 
+        setPanelFeedback({ tone: "success", message: "Đã nạp dữ liệu từ ZIP và đồng bộ vào app." });
         onAlert("Đồng bộ hoàn tất", "Cây thư mục đã được nhập thành công! Đang đồng bộ giao diện...");
         loadIndexedDBExtra();
       }
     } catch (err: any) {
+      setPanelFeedback({ tone: "danger", message: err.message || "Lỗi phân tích hoặc nạp ZIP." });
       alert("Lỗi phân tích tập tin ZIP thư mục: " + err.message);
     } finally {
       setIsImporting(false);
@@ -1487,6 +1554,12 @@ export default function VFSManager({
           </button>
         </div>
       )}
+
+      {panelFeedback && panelFeedbackClassName ? (
+        <div className={panelFeedbackClassName}>
+          {panelFeedback.message}
+        </div>
+      ) : null}
 
       {isFileEditorMode ? (
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden">

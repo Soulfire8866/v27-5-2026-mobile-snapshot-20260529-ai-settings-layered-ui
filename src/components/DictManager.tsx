@@ -1384,9 +1384,14 @@ export default function DictManager({
 
       {/* Modal chuẩn hóa tên trong bản dịch đã có (tab Riêng) */}
       {isImportPreviewOpen && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[55] rounded-lg animate-fade-in">
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[55] rounded-lg animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chuẩn hóa tên trong bản dịch"
+        >
           <div
-            className={`${uiPanel} shadow-2xl w-full max-w-2xl h-full max-h-[92dvh] !p-0 text-app-text flex flex-col`}
+            className={`${uiPanel} app-chrome-safe-top app-chrome-safe-bottom shadow-2xl w-full max-w-2xl h-full max-h-[92dvh] !p-0 text-app-text flex flex-col`}
             id="novel-dict-import-preview-modal"
           >
             <div className="p-4 border-b border-app-border flex items-center justify-between bg-app-surface-muted shrink-0">
@@ -1402,7 +1407,7 @@ export default function DictManager({
                 type="button"
                 onClick={() => setIsImportPreviewOpen(false)}
                 disabled={isImportApplying}
-                className="h-9 w-9 hover:bg-app-surface-muted rounded-lg text-app-text-muted hover:text-app-text flex items-center justify-center cursor-pointer shrink-0"
+                className={`${uiBtnGhost} !min-h-9 !w-9 !px-0`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1514,8 +1519,13 @@ export default function DictManager({
 
       {/* Modal Proper Name Scanner popup */}
       {isScanPopupOpen && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[55] rounded-lg animate-fade-in">
-          <div className={`${uiPanel} shadow-2xl w-full max-w-2xl h-full max-h-[92dvh] !p-0 text-app-text flex flex-col`} id="scan-popup-modal">
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[55] rounded-lg animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Kết quả quét tên riêng"
+        >
+          <div className={`${uiPanel} app-chrome-safe-top app-chrome-safe-bottom shadow-2xl w-full max-w-2xl h-full max-h-[92dvh] !p-0 text-app-text flex flex-col`} id="scan-popup-modal">
             
             {/* Header */}
             <div className="p-4 border-b border-app-border flex items-center justify-between bg-app-surface-muted shrink-0">
@@ -1530,7 +1540,7 @@ export default function DictManager({
               <button
                 type="button"
                 onClick={() => setIsScanPopupOpen(false)}
-                className="h-9 w-9 hover:bg-app-surface-muted rounded-lg text-app-text-muted hover:text-app-text flex items-center justify-center cursor-pointer"
+                className={`${uiBtnGhost} !min-h-9 !w-9 !px-0`}
               >
                 <X className="w-5 h-5" />
               </button>

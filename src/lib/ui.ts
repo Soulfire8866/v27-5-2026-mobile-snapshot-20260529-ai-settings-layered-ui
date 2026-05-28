@@ -14,10 +14,10 @@ export const uiHeader =
 export const uiMain = "flex-1 w-full mx-auto min-h-0 flex flex-col custom-scrollbar";
 
 export const uiCard =
-  "bg-app-surface border border-app-border rounded-lg shadow-sm";
+  "bg-app-surface border border-app-border rounded-lg shadow-sm transition-colors duration-150 ease-out";
 
 export const uiCardInset =
-  "bg-app-surface-muted border border-app-border rounded-lg";
+  "bg-app-surface-muted border border-app-border rounded-lg transition-colors duration-150 ease-out";
 
 /** Typography */
 export const uiTitle = "text-base font-semibold text-app-text tracking-tight";
@@ -31,7 +31,7 @@ export const uiCaption = "text-xs text-app-text-muted leading-snug";
 
 /** Buttons — min height + text size tránh tràn */
 export const uiBtnBase =
-  "inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3 text-sm font-medium rounded-md transition-colors cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-1.5 min-h-10 max-w-full px-3 text-sm font-medium rounded-md transition-all duration-150 ease-out cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 focus-visible:ring-offset-1 focus-visible:ring-offset-app-bg disabled:opacity-55 disabled:pointer-events-none disabled:cursor-not-allowed [&[aria-busy='true']]:opacity-75";
 
 export const uiBtnGhost =
   `${uiBtnBase} border border-app-border bg-app-surface text-app-text hover:bg-app-surface-muted`;
@@ -47,7 +47,7 @@ export const uiBtnDanger =
 
 /** Inputs */
 export const uiInput =
-  "w-full min-h-10 px-3 text-sm rounded-md border border-app-border bg-app-surface text-app-text placeholder:text-app-text-muted focus:outline-none focus:ring-2 focus:ring-app-accent/35 focus:border-app-accent";
+  "w-full min-h-10 px-3 text-sm rounded-md border border-app-border bg-app-surface text-app-text placeholder:text-app-text-muted transition-colors duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-app-accent/35 focus:border-app-accent disabled:opacity-60 disabled:cursor-not-allowed";
 
 /** Menu row (home) */
 export const uiMenuRow =
@@ -80,6 +80,24 @@ export const uiSegmentedBtnIdle =
 
 export const uiInfoBanner =
   "shrink-0 mb-2 p-3 rounded-lg border border-app-accent/30 bg-app-accent/10 text-app-text text-xs leading-relaxed flex items-start justify-between gap-3";
+
+export const uiInlineFeedbackBase =
+  "rounded-md border px-3 py-2 text-[11px] leading-relaxed";
+
+export const uiInlineFeedbackInfo =
+  `${uiInlineFeedbackBase} border-app-accent/25 bg-app-accent/10 text-app-text`;
+
+export const uiInlineFeedbackSuccess =
+  `${uiInlineFeedbackBase} border-emerald-600/25 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300`;
+
+export const uiInlineFeedbackWarning =
+  `${uiInlineFeedbackBase} border-amber-600/25 bg-amber-600/10 text-amber-700 dark:text-amber-300`;
+
+export const uiInlineFeedbackDanger =
+  `${uiInlineFeedbackBase} border-red-600/25 bg-red-600/10 text-red-700 dark:text-red-300`;
+
+export const uiSafeTopChrome = "pt-[max(env(safe-area-inset-top,0px),28px)]";
+export const uiSafeBottomChrome = "pb-[max(env(safe-area-inset-bottom,0px),12px)]";
 
 /** Khối trang shell (tab nội dung) */
 export const uiPageRoot =

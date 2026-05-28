@@ -37,6 +37,9 @@ import {
   uiSegmentedTrack,
   uiSegmentedBtnActive,
   uiSegmentedBtnIdle,
+  uiInlineFeedbackInfo,
+  uiInlineFeedbackSuccess,
+  uiInlineFeedbackWarning,
 } from "../lib/ui";
 import {
   MODELS_DATABASE,
@@ -58,6 +61,14 @@ const PROVIDER_SECTION_LABELS: Record<string, string> = {
   deepseek: "DeepSeek AI",
   qwen: "Alibaba Qwen (DashScope)",
   openai: "Nhánh OpenAI (GPT)",
+};
+
+const PROVIDER_SAVE_SUCCESS_LABELS: Record<string, string> = {
+  google: "Đã lưu khóa Google Gemini.",
+  openai: "Đã lưu khóa OpenAI.",
+  claude: "Đã lưu khóa Anthropic Claude.",
+  deepseek: "Đã lưu khóa DeepSeek.",
+  qwen: "Đã lưu khóa Alibaba Qwen.",
 };
 
 const PROVIDER_SELECT_STYLES: Record<
@@ -193,6 +204,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
   };
 
   const currentKeys = settings.apiKeys || {};
+  const hasAnyApiKey = Object.values(currentKeys).some((v) => (v || "").trim().length > 0);
 
   const renderMultiKeyFields = (
     platform: "google" | "openai" | "claude" | "deepseek" | "qwen",
@@ -340,6 +352,17 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className={hasAnyApiKey ? uiInlineFeedbackSuccess : uiInlineFeedbackWarning}>
+          {hasAnyApiKey
+            ? "API key đã được cấu hình. Bạn có thể dịch ngay trong Lab."
+            : "Chưa có API key nào. Hãy nhập ít nhất 1 key để kích hoạt dịch thuật."}
+        </div>
+        <div className={uiInlineFeedbackInfo}>
+          Chế độ hiện tại: <strong>{settings.directClientTranslation ? "Direct Client API" : "Qua máy chủ trung gian"}</strong>.
+        </div>
+      </div>
+
       {/* Grid container responsive */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
@@ -360,7 +383,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
             <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-app-text flex items-center gap-2 cursor-pointer select-none">
-                  <Cpu className="w-4 h-4 text-amber-500 animate-spin-slow" />
+                  <Cpu className="w-4 h-4 text-amber-500" />
                   Xoay tua API Key chéo nền tảng
                 </label>
                 <button
@@ -441,11 +464,6 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                   </a>
                 </div>
                 {renderMultiKeyFields("google", "AIzaSy...")}
-                {saveSuccess === "google" && (
-                  <span className="text-[10px] text-emerald-500 font-bold block flex items-center gap-1 animate-pulse mt-1">
-                    <Check className="w-3.5 h-3.5" /> Đã lưu khóa Google Gemini
-                  </span>
-                )}
               </div>
 
               {/* OpenAI Card */}
@@ -465,11 +483,6 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                   </a>
                 </div>
                 {renderMultiKeyFields("openai", "sk-proj-...")}
-                {saveSuccess === "openai" && (
-                  <span className="text-[10px] text-emerald-500 font-bold block flex items-center gap-1 animate-pulse mt-1">
-                    <Check className="w-3.5 h-3.5" /> Đã lưu khóa OpenAI
-                  </span>
-                )}
               </div>
 
               {/* Anthropic Claude */}
@@ -485,15 +498,10 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                     referrerPolicy="no-referrer"
                     className="text-[10px] text-amber-500 hover:underline flex items-center gap-0.5"
                   >
-                    Console Console <ExternalLink className="w-2.5 h-2.5" />
+                    Mở Console <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                 </div>
                 {renderMultiKeyFields("claude", "sk-ant-...")}
-                {saveSuccess === "claude" && (
-                  <span className="text-[10px] text-emerald-500 font-bold block flex items-center gap-1 animate-pulse mt-1">
-                    <Check className="w-3.5 h-3.5" /> Đã lưu khóa Anthropic
-                  </span>
-                )}
               </div>
 
               {/* DeepSeek API */}
@@ -513,11 +521,6 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                   </a>
                 </div>
                 {renderMultiKeyFields("deepseek", "sk-...")}
-                {saveSuccess === "deepseek" && (
-                  <span className="text-[10px] text-emerald-500 font-bold block flex items-center gap-1 animate-pulse mt-1">
-                    <Check className="w-3.5 h-3.5" /> Đã lưu khóa DeepSeek
-                  </span>
-                )}
               </div>
 
               {/* Alibaba Qwen */}
@@ -537,14 +540,15 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                   </a>
                 </div>
                 {renderMultiKeyFields("qwen", "lm-...")}
-                {saveSuccess === "qwen" && (
-                  <span className="text-[10px] text-emerald-500 font-bold block flex items-center gap-1 animate-pulse mt-1">
-                    <Check className="w-3.5 h-3.5" /> Đã lưu khóa Qwen
-                  </span>
-                )}
               </div>
 
             </form>
+            {saveSuccess && (
+              <div className={`${uiInlineFeedbackSuccess} flex items-center gap-1.5`}>
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                {PROVIDER_SAVE_SUCCESS_LABELS[saveSuccess] || "Đã lưu cấu hình API key."}
+              </div>
+            )}
           </div>
 
           {/* AI QUALITY CARD */}
@@ -600,7 +604,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
               </div>
 
               <div className="bg-amber-500/5 border border-amber-500/25 rounded-lg p-4 text-[10.5px] leading-relaxed text-amber-900 dark:text-amber-400 space-y-1.5">
-                <span className="font-bold flex items-center gap-1">🛡️ CÀI ĐẶT AN TOÀN TRÁNH TRÀO LƯU RATE LIMIT:</span>
+                <span className="font-bold flex items-center gap-1">CÀI ĐẶT AN TOÀN TRÁNH TRÀO LƯU RATE LIMIT:</span>
                 <p>• <strong>Gói Google MIỄN PHÍ:</strong> Bắt buộc đặt <strong>1 Luồng</strong>. Hạn mức Free Tier của Google AI Studio chỉ cho phép gọi 15 yêu cầu trên một phút, gọi nhiều hơn sẽ bị block lỗi 429.</p>
                 <p>• <strong>Gói Vertex / Studio PAY-AS-YOU-GO:</strong> Đặt <strong>2 - 3 Luồng</strong> để dịch song song nhiều chương trong Lab Dịch (Dịch toàn bộ / Dịch chương đã chọn).</p>
                 <p>• <strong>Chương 15–30 nghìn chữ:</strong> Cùng cài đặt này còn cho phép dịch <strong>tối đa 3 đoạn trong cùng một chương</strong> song song (DeepSeek, GPT, Claude, Qwen…). Giữ <strong>1 luồng</strong> nếu dùng Gemini free hoặc ưu tiên đồng nhất tên/xưng hô hơn tốc độ.</p>
@@ -640,7 +644,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                 <span className={`${uiLabel} block !text-xs`}>
                   Chỉ thị biên dịch (System Prompts)
                 </span>
-                <p className="text-[10px] text-app-muted leading-relaxed">
+                <p className="text-[10px] text-app-text-muted leading-relaxed">
                   Để trống cả hai ô → hướng dẫn mặc định hệ thống. Có nhập ít nhất một ô → ưu tiên chỉ thị 1 rồi 2 (thay phần giọng văn mặc định). App luôn giữ quy tắc 1 dòng = 1 dòng và «dịch theo nghĩa, không phiên âm Hán-Việt thuần». Prompt JSON sẽ được chuyển sang dạng văn bản trước khi gửi API.
                 </p>
                 
@@ -678,7 +682,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
           <div className={`${uiPanel} !p-5 space-y-4`}>
             <div className="flex items-center justify-between pb-3 border-b border-app-border">
               <div className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-amber-500 animate-spin-slow" />
+                <Cpu className="w-5 h-5 text-amber-500" />
                 <h3 className={`${uiLabel} !text-xs !tracking-widest`}>Ưu Tiên Chọn Model AI Nhãn</h3>
               </div>
               <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-semibold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider">

@@ -104,6 +104,15 @@
   padding-top: max(env(safe-area-inset-top, 0px), 28px);
 }
 
+/* App-wide full-screen chrome safe-area helpers (7B baseline). */
+.app-chrome-safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 28px);
+}
+
+.app-chrome-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+}
+
 /* Header Lab mở chương: cùng safe-top với chrome Lab (1A — thẳng hàng Từ điển/Cấu hình). */
 #lab-chapter-header.lab-chrome-safe-top {
   padding-top: max(env(safe-area-inset-top, 0px), 28px);

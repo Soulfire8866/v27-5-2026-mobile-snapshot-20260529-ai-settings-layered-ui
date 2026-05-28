@@ -51,6 +51,10 @@ import {
   uiSegmentedTrack,
   uiSegmentedBtnActive,
   uiSegmentedBtnIdle,
+  uiInlineFeedbackInfo,
+  uiInlineFeedbackSuccess,
+  uiInlineFeedbackWarning,
+  uiInlineFeedbackDanger,
 } from "../lib/ui";
 
 interface StoryLibraryProps {
@@ -97,6 +101,10 @@ export default function StoryLibrary({
   const [exportFormat, setExportFormat] = useState<"txt" | "docx" | "epub" | "pdf">("txt");
   const [isExportingTranslation, setIsExportingTranslation] = useState(false);
   const [isImportingTranslation, setIsImportingTranslation] = useState(false);
+  const [toolsFeedback, setToolsFeedback] = useState<{
+    tone: "info" | "success" | "warning" | "danger";
+    message: string;
+  } | null>(null);
   
   const [novelToDelete, setNovelToDelete] = useState<Novel | null>(null);
   const [deleteOption, setDeleteOption] = useState<"library_only" | "complete">("library_only");
@@ -131,6 +139,12 @@ export default function StoryLibrary({
     };
   }, [showToolsModal]);
 
+  useEffect(() => {
+    if (!showToolsModal) {
+      setToolsFeedback(null);
+    }
+  }, [showToolsModal]);
+
   const handleExport = () => {
     if (!targetExportNovel) return;
     
@@ -138,6 +152,10 @@ export default function StoryLibrary({
     const end = Math.min(targetExportNovel.chapters.length, exportEndIdx) - 1;
 
     if (start > end) {
+      setToolsFeedback({
+        tone: "warning",
+        message: "Khoảng chương không hợp lệ. Vui lòng kiểm tra lại mốc bắt đầu/kết thúc.",
+      });
       if (onAlert) {
         onAlert("Khoảng chương lỗi", "Khoảng chương lựa chọn xuất bản không hợp lệ!");
       } else {
@@ -158,6 +176,7 @@ export default function StoryLibrary({
         const msg =
           "Dung lượng xuất quá lớn cho định dạng này trên điện thoại. " +
           "Vui lòng giảm phạm vi chương (khuyến nghị <= 900k ký tự mỗi lần) hoặc xuất TXT theo nhiều tập.";
+        setToolsFeedback({ tone: "warning", message: msg });
         if (onAlert) onAlert("Nên chia nhỏ bản xuất", msg);
         else alert(msg);
         return;
@@ -168,12 +187,17 @@ export default function StoryLibrary({
       const msg =
         "Khối lượng TXT quá lớn cho một lần xuất trên mobile. " +
         "Vui lòng chia theo nhiều tập (mỗi tập ~300k-600k ký tự).";
+      setToolsFeedback({ tone: "warning", message: msg });
       if (onAlert) onAlert("Nên chia nhỏ bản xuất", msg);
       else alert(msg);
       return;
     }
     
     const performActualExport = () => {
+      setToolsFeedback({
+        tone: "success",
+        message: `Đã gửi lệnh xuất ${exportFormat.toUpperCase()} cho phạm vi ${exportStartIdx}-${exportEndIdx}.`,
+      });
       if (exportFormat === "txt") {
         exportChaptersToTxt(targetExportNovel.title, targetExportNovel.chapters, start, end);
       } else if (exportFormat === "docx") {
@@ -204,6 +228,10 @@ export default function StoryLibrary({
   const handleExportTranslationBackup = async () => {
     if (!targetExportNovel) return;
     setIsExportingTranslation(true);
+    setToolsFeedback({
+      tone: "info",
+      message: "Đang đóng gói data dịch truyện đã chọn...",
+    });
     try {
       const { blob, manifest, fileName } = await buildTranslationBackupZip(novels, {
         novelId: targetExportNovel.id,
@@ -217,7 +245,15 @@ export default function StoryLibrary({
           `Đã xuất «${targetExportNovel.title}»: ${manifest.chapterCount} chương đã dịch Lab.`
         );
       }
+      setToolsFeedback({
+        tone: "success",
+        message: `Đã lưu data dịch «${targetExportNovel.title}» (${manifest.chapterCount} chương).`,
+      });
     } catch (err: unknown) {
+      setToolsFeedback({
+        tone: "danger",
+        message: err instanceof Error ? err.message : String(err),
+      });
       if (onAlert) {
         onAlert("Không xuất được", err instanceof Error ? err.message : String(err));
       }
@@ -230,8 +266,24 @@ export default function StoryLibrary({
     const file = e.target.files?.[0];
     if (!file || !onImportTranslationBackup) return;
     setIsImportingTranslation(true);
+    setToolsFeedback({
+      tone: "info",
+      message: `Đang nạp data dịch từ file «${file.name}»...`,
+    });
     try {
       await onImportTranslationBackup(file);
+      setToolsFeedback({
+        tone: "success",
+        message: `Đã nạp xong data dịch từ «${file.name}».`,
+      });
+    } catch (err: unknown) {
+      setToolsFeedback({
+        tone: "danger",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      if (onAlert) {
+        onAlert("Không nạp được data dịch", err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setIsImportingTranslation(false);
       if (e.target) e.target.value = "";
@@ -587,7 +639,7 @@ export default function StoryLibrary({
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="lab-chrome-safe-top shrink-0 px-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border pr-12">
+              <div className="lab-chrome-safe-top app-chrome-safe-top shrink-0 px-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border pr-12">
                 <div className="flex items-center gap-2">
                   <MoreVertical className="w-5 h-5 text-app-accent shrink-0" />
                   <div className="min-w-0">
@@ -602,6 +654,21 @@ export default function StoryLibrary({
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 py-4 sm:px-6 space-y-6">
+              {toolsFeedback ? (
+                <div
+                  className={
+                    toolsFeedback.tone === "success"
+                      ? uiInlineFeedbackSuccess
+                      : toolsFeedback.tone === "warning"
+                      ? uiInlineFeedbackWarning
+                      : toolsFeedback.tone === "danger"
+                      ? uiInlineFeedbackDanger
+                      : uiInlineFeedbackInfo
+                  }
+                >
+                  {toolsFeedback.message}
+                </div>
+              ) : null}
 
               {/* 1. Bookshelf Layout setting */}
               <div className={`${uiCardInset} p-4 space-y-3`}>
@@ -800,7 +867,7 @@ export default function StoryLibrary({
 
               </div>
 
-              <div className="shrink-0 px-4 py-3 sm:px-6 border-t border-app-border flex items-center justify-end gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="app-chrome-safe-bottom shrink-0 px-4 py-3 sm:px-6 border-t border-app-border flex items-center justify-end gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <button
                   type="button"
                   onClick={() => setShowToolsModal(false)}
@@ -816,8 +883,14 @@ export default function StoryLibrary({
 
       {/* Custom Deletion Dialog Modal */}
       {novelToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-54 select-none animate-fade-in" id="delete-option-dialog">
-          <div className={`${uiPanel} p-6 shadow-2xl max-w-lg w-full animate-scale-up text-app-text`}>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-54 select-none animate-fade-in"
+          id="delete-option-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xác nhận xóa tác phẩm"
+        >
+          <div className={`${uiPanel} app-chrome-safe-top app-chrome-safe-bottom p-6 shadow-2xl max-w-lg w-full animate-scale-up text-app-text max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} text-sm flex items-center gap-2 uppercase`}>
               <Trash2 className="w-5 h-5 text-red-500 shrink-0" />
               XÁC NHẬN XÓA TÁC PHẨM

@@ -1939,8 +1939,14 @@ export default function App() {
 
       {/* Floating alert dialogue overlay */}
       {alertConfig && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in" id="fluent-alert-balloon">
-          <div className={`${uiCard} p-5 shadow-2xl max-w-md w-full animate-scale-up`}>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in"
+          id="fluent-alert-balloon"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Thông báo hệ thống"
+        >
+          <div className={`${uiCard} app-chrome-safe-top app-chrome-safe-bottom p-5 shadow-2xl max-w-md w-full animate-scale-up max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} flex items-center gap-2`}>
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               {alertConfig.title}
@@ -1962,8 +1968,11 @@ export default function App() {
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in"
           id="translation-import-prompt"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Nạp data dịch"
         >
-          <div className={`${uiCard} p-5 shadow-2xl max-w-md w-full animate-scale-up space-y-3`}>
+          <div className={`${uiCard} app-chrome-safe-top app-chrome-safe-bottom p-5 shadow-2xl max-w-md w-full animate-scale-up space-y-3 max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} flex items-center gap-2`}>
               <FolderTree className="w-5 h-5 text-teal-600 shrink-0" />
               Nạp data dịch
@@ -2030,8 +2039,14 @@ export default function App() {
 
       {/* Floating confirm dialogue override */}
       {confirmConfig && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in" id="fluent-confirm-balloon">
-          <div className={`${uiCard} p-5 shadow-2xl max-w-md w-full animate-scale-up`}>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in"
+          id="fluent-confirm-balloon"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xác nhận hành động"
+        >
+          <div className={`${uiCard} app-chrome-safe-top app-chrome-safe-bottom p-5 shadow-2xl max-w-md w-full animate-scale-up max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} flex items-center gap-2`}>
               <AlertCircle className={`w-5 h-5 shrink-0 ${confirmConfig.isDanger ? "text-red-500" : "text-app-accent"}`} />
               {confirmConfig.title}
@@ -2063,8 +2078,14 @@ export default function App() {
 
       {/* Model adaptation strategy selection dialog */}
       {showModelChangePopup && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in" id="model-adaptation-popup">
-          <div className={`${uiCard} p-5 shadow-2xl max-w-md w-full animate-scale-up`}>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-[54] select-none animate-fade-in"
+          id="model-adaptation-popup"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chọn chiến lược đổi model"
+        >
+          <div className={`${uiCard} app-chrome-safe-top app-chrome-safe-bottom p-5 shadow-2xl max-w-md w-full animate-scale-up max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar`}>
             <h4 className={`${uiTitle} flex items-center gap-2`}>
               <Sparkles className="w-5 h-5 text-app-accent shrink-0" />
               Thay đổi mô hình AI dịch thuật
