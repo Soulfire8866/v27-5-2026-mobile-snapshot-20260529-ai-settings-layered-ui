@@ -1,6 +1,6 @@
 /**
  * Lớp giao diện thống nhất — tham khảo Kindle mobile:
- * nền giấy, chữ tối giản, viền mảnh, nút có chiều cao cố định, accent teal dịu.
+ * nền giấy, chữ tối giản, viền mảnh, nút có chiều cao cố định, accent nổi.
  * Chỉ className — không đổi logic.
  */
 
@@ -25,7 +25,7 @@ export const uiTitle = "text-[15px] md:text-base font-semibold text-app-text tra
 export const uiSubtitle = "text-sm text-app-text-muted leading-relaxed";
 
 export const uiLabel =
-  "text-[11px] font-semibold uppercase tracking-[0.08em] text-app-text-muted";
+  "text-[11px] font-semibold tracking-[0.02em] text-app-text-muted";
 
 export const uiCaption = "text-xs text-app-text-muted leading-snug";
 
@@ -37,7 +37,7 @@ export const uiBtnGhost =
   `${uiBtnBase} border border-app-border bg-app-surface text-app-text hover:bg-app-surface-muted hover:border-app-border/80`;
 
 export const uiBtnPrimary =
-  `${uiBtnBase} border border-app-accent bg-app-accent text-white shadow-[0_2px_10px_rgba(15,118,110,0.26)] hover:bg-app-accent-hover hover:shadow-[0_4px_14px_rgba(15,118,110,0.28)]`;
+  `${uiBtnBase} border border-app-accent bg-app-accent text-white shadow-[0_2px_10px_color-mix(in_srgb,var(--color-app-accent)_35%,transparent)] hover:bg-app-accent-hover hover:shadow-[0_4px_14px_color-mix(in_srgb,var(--color-app-accent)_42%,transparent)]`;
 
 export const uiBtnSecondary =
   `${uiBtnBase} border border-app-border bg-app-surface-muted text-app-text hover:bg-app-border/35`;
@@ -54,7 +54,7 @@ export const uiMenuRow =
   "app-pressable w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-border bg-app-surface hover:bg-app-surface-muted/90 hover:border-app-border/80 transition-all cursor-pointer touch-manipulation active:scale-[0.99]";
 
 export const uiMenuRowActive =
-  "app-pressable w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-accent bg-app-accent text-white shadow-[0_4px_14px_rgba(15,118,110,0.28)] transition-all cursor-pointer";
+  "app-pressable w-full min-h-[56px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 text-left border border-app-accent bg-app-accent text-white shadow-[0_4px_14px_color-mix(in_srgb,var(--color-app-accent)_40%,transparent)] transition-all cursor-pointer";
 
 export const uiIconBox =
   "h-9 w-9 shrink-0 rounded-lg flex items-center justify-center bg-app-surface-muted text-app-text-muted border border-app-border transition-transform duration-150 ease-out group-hover:scale-105";
@@ -113,10 +113,10 @@ export const uiSection =
   "bg-app-surface-muted/80 p-4 md:p-5 border-y md:border border-app-border rounded-none md:rounded-xl space-y-4 shadow-[0_1px_2px_rgba(17,24,39,0.05)]";
 
 export const uiFieldLabel =
-  "block text-[11px] text-app-text-muted mb-1 font-bold uppercase tracking-wider";
+  "block text-[11px] text-app-text-muted mb-1 font-semibold tracking-[0.02em]";
 
 export const uiBannerHero =
-  "bg-gradient-to-r from-app-accent to-app-accent-hover text-white p-5 md:p-6 rounded-xl border border-app-border shadow-[0_8px_20px_rgba(15,118,110,0.26)] flex flex-col md:flex-row md:items-center justify-between gap-4";
+  "bg-gradient-to-r from-app-accent to-app-accent-hover text-white p-5 md:p-6 rounded-xl border border-app-border shadow-[0_8px_20px_color-mix(in_srgb,var(--color-app-accent)_34%,transparent)] flex flex-col md:flex-row md:items-center justify-between gap-4";
 
 export const uiTabPill =
   "app-pressable app-tab-pill inline-flex items-center justify-center min-h-9 px-3 text-xs font-semibold uppercase tracking-wide";

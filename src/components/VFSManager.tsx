@@ -1499,8 +1499,8 @@ export default function VFSManager({
   };
 
   return (
-    <div className={`flex flex-col gap-4 ${isFileEditorMode ? "h-[calc(100vh-140px)] min-h-[500px]" : ""}`}>
-      <div className={`${uiSection} shrink-0`}>
+    <div className={`flex flex-col gap-4 animate-fade-up-soft ${isFileEditorMode ? "h-[calc(100vh-140px)] min-h-[500px]" : ""}`}>
+      <div className={`${uiSection} shrink-0 rounded-xl bg-gradient-to-r from-app-surface to-app-surface-muted/70 border border-app-border`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className={uiIconHeader}>
@@ -1816,9 +1816,9 @@ export default function VFSManager({
               </div>
             </div>
 
-            <div className={`${uiCard} border-2 border-teal-600/35 bg-teal-600/5 p-4 flex flex-col gap-3`}>
+            <div className={`${uiCard} border-2 border-app-accent/35 bg-app-accent/8 p-4 flex flex-col gap-3`}>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">★</span>
+                <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center shrink-0">★</span>
                 <h3 className={`${uiTitle} text-xs`}>Sao lưu / Nạp data dịch (an toàn)</h3>
               </div>
               <p className={`${uiCaption} text-[10.5px] leading-relaxed`}>
@@ -1832,7 +1832,7 @@ export default function VFSManager({
                   type="button"
                   onClick={handleExportTranslationBackup}
                   disabled={isExportingTranslation || translatedChapterTotal === 0}
-                  className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
+                  className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
                 >
                   <Download className="w-4 h-4" />
                   {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch (.zip)"}

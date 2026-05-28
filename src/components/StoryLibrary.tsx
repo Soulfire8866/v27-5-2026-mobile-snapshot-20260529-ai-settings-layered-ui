@@ -13,12 +13,12 @@ import {
   Clock, 
   FileDown,
   ExternalLink,
+  ChevronLeft,
   ChevronRight,
   Info,
-  MoreVertical,
+  SlidersHorizontal,
   Grid,
   List,
-  X,
   FileText,
   Percent
 } from "lucide-react";
@@ -350,10 +350,10 @@ export default function StoryLibrary({
   };
 
   return (
-    <div className={`${uiPageRoot} space-y-5`} id="story-library-panel">
+    <div className={`${uiPageRoot} space-y-5 animate-fade-up-soft`} id="story-library-panel">
       
       {/* Title Header with ... Menu trigger */}
-      <div className={uiPageHeader}>
+      <div className={`${uiPageHeader} !flex-row items-center rounded-xl bg-gradient-to-r from-app-surface to-app-surface-muted/70 border border-app-border px-4 py-3 md:py-4`}>
         <div className="flex items-center gap-2.5">
           <div className={uiIconHeader}>
             <Book className="w-5 h-5 text-app-accent" />
@@ -373,7 +373,7 @@ export default function StoryLibrary({
           className={`${uiBtnGhost} p-2.5 min-h-10 min-w-10`}
           title="Bảng điều khiển, nạp truyện & xuất bản"
         >
-          <MoreVertical className="w-5 h-5 text-app-accent" />
+          <SlidersHorizontal className="w-5 h-5 text-app-accent" />
         </button>
       </div>
 
@@ -427,7 +427,7 @@ export default function StoryLibrary({
                   <div
                     key={novel.id}
                     onClick={() => onSelectNovel(novel.id, true)}
-                    className={`group ${uiCard} hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden active:scale-[0.99] border-t-4 border-t-app-accent/80`}
+                    className={`group ${uiCard} hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col relative overflow-hidden active:scale-[0.99] border-t-4 border-t-app-accent/90`}
                   >
                     {/* Active read label */}
                     {isActive && (
@@ -536,7 +536,7 @@ export default function StoryLibrary({
                   <div
                     key={novel.id}
                     onClick={() => onSelectNovel(novel.id, true)}
-                    className={`p-3.5 ${uiCard} rounded-xl hover:shadow-md hover:border-app-accent transition-all duration-200 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 active:scale-[0.99]`}
+                    className={`p-3.5 ${uiCard} rounded-xl hover:shadow-md hover:border-app-accent transition-all duration-200 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 active:scale-[0.99] border-l-[3px] border-l-transparent hover:border-l-app-accent`}
                   >
                     {/* Left Info Column */}
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -630,26 +630,28 @@ export default function StoryLibrary({
             aria-modal="true"
           >
             <div className={`app-sheet-handle relative flex flex-col flex-1 min-h-0 w-full h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[min(92dvh,880px)] sm:flex-none sm:max-w-2xl ${uiPanel} sm:rounded-xl sm:shadow-2xl text-app-text !p-0`}>
-              <button
-                type="button"
-                onClick={() => setShowToolsModal(false)}
-                className={`absolute right-3 z-10 ${uiBtnGhost} p-2 min-h-0 min-w-0 border-0 top-[max(env(safe-area-inset-top,0px),0.75rem)] sm:top-3`}
-                title="Đóng bảng"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="lab-chrome-safe-top app-chrome-safe-top shrink-0 px-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border pr-12">
-                <div className="flex items-center gap-2">
-                  <MoreVertical className="w-5 h-5 text-app-accent shrink-0" />
-                  <div className="min-w-0">
-                    <h3 className={uiTitle}>
-                      Bảng điều khiển Thư Viện
-                    </h3>
-                    <p className={`${uiCaption} mt-0.5`}>
-                      Kệ sách · xuất ebook · nạp truyện Trung
-                    </p>
+              <div className="lab-chrome-safe-top app-chrome-safe-top shrink-0 px-4 pb-3 sm:px-6 sm:pt-6 border-b border-app-border">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <SlidersHorizontal className="w-5 h-5 text-app-accent shrink-0" />
+                    <div className="min-w-0">
+                      <h3 className={uiTitle}>
+                        Bảng Điều Khiển Thư Viện
+                      </h3>
+                      <p className={`${uiCaption} mt-0.5`}>
+                        Kệ sách · xuất ebook · nạp truyện Trung
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowToolsModal(false)}
+                    className={`${uiBtnGhost} h-9 px-3 text-xs font-bold shrink-0`}
+                    title="Quay lại"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Quay lại
+                  </button>
                 </div>
               </div>
 
@@ -673,7 +675,7 @@ export default function StoryLibrary({
               {/* 1. Bookshelf Layout setting */}
               <div className={`${uiCardInset} p-4 space-y-3`}>
                 <span className={`${uiLabel} text-[10px] block`}>
-                  (1) Cài đặt kiểu hiển thị kệ sách (Bookshelf View):
+                  (1) Cài đặt kiểu hiển thị kệ sách:
                 </span>
                 
                 <div className={uiSegmentedTrack}>
@@ -682,7 +684,7 @@ export default function StoryLibrary({
                     onClick={() => toggleBookshelfType("grid")}
                     className={bookshelfType === "grid" ? uiSegmentedBtnActive : uiSegmentedBtnIdle}
                   >
-                    <Grid className="w-4 h-4" /> Bố trí dạng lưới (Grid)
+                    <Grid className="w-4 h-4" /> Bố trí dạng lưới
                   </button>
 
                   <button
@@ -690,7 +692,7 @@ export default function StoryLibrary({
                     onClick={() => toggleBookshelfType("list")}
                     className={bookshelfType === "list" ? uiSegmentedBtnActive : uiSegmentedBtnIdle}
                   >
-                    <List className="w-4 h-4" /> Bố trí danh sách (List)
+                    <List className="w-4 h-4" /> Bố trí dạng danh sách
                   </button>
                 </div>
               </div>
@@ -698,7 +700,7 @@ export default function StoryLibrary({
               {/* 2. Ebook exporter (Conditional rendering when books are present) */}
               <div className={`${uiCardInset} p-4 space-y-4`}>
                 <span className={`${uiLabel} text-[10px] block`}>
-                  (2) Kết Xuất Sách Ra Ebook Để Đọc:
+                  (2) Kết xuất sách ra ebook để đọc:
                 </span>
 
                 {novels.length === 0 ? (
@@ -785,7 +787,7 @@ export default function StoryLibrary({
               </div>
 
               {/* 2b. Sao lưu data dịch Lab — theo truyện đang chọn */}
-              <div className={`${uiCard} border-teal-600/30 bg-teal-600/5 p-4 space-y-3`}>
+              <div className={`${uiCard} border-app-accent/35 bg-app-accent/8 p-4 space-y-3`}>
                 <span className={`${uiLabel} text-[10px] block`}>
                   (2b) Sao lưu / Nạp data dịch Lab (ZIP an toàn):
                 </span>
@@ -813,7 +815,7 @@ export default function StoryLibrary({
                           !targetExportNovel ||
                           translatedCountForExportNovel === 0
                         }
-                        className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
+                        className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
                       >
                         <Download className="w-4 h-4" />
                         {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch truyện này"}
@@ -850,7 +852,7 @@ export default function StoryLibrary({
               {/* 3. Tải Truyện Tiếng Trung Đầu Vào (Novel Loader integrated beautifully) */}
               <div className={`${uiCardInset} p-4 space-y-4`}>
                 <span className={`${uiLabel} text-[10px] block`}>
-                  (3) Tải Truyện Tiếng Trung Đầu Vào:
+                  (3) Tải truyện tiếng Trung đầu vào:
                 </span>
                 
                 <NovelLoader

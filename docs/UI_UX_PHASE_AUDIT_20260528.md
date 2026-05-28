@@ -99,3 +99,45 @@ Xác nhận các đợt nâng cấp UI/UX vi mô không làm hỏng chức năng
 
 - Không phát hiện conflict chức năng cốt lõi qua gate hiện có.
 - Tác động nghiệp vụ thấp; thay đổi tập trung accessibility + safe-area + consistency.
+
+---
+
+## Cập nhật đợt visual + label alignment (2026-05-29)
+
+### Phạm vi bổ sung
+
+- `src/App.tsx`
+- `src/components/StoryLibrary.tsx`
+- `src/components/SettingsTab.tsx`
+- `src/components/VFSManager.tsx`
+- `src/components/DictManager.tsx`
+- `src/components/TranslationErrorPanel.tsx`
+- `src/index.css`
+- `src/lib/ui.ts`
+- `.cursor/rules/project-guide.mdc`
+- `.cursor/rules/high-risk-areas.mdc`
+- `docs/AI_AGENT_PROJECT_GUIDE.md`
+- `docs/UI_UX_MICRO_POLISH_SPEC.md`
+
+### Quyết định thiết kế đã chốt
+
+- Giữ layout/flow hiện có, chỉ nâng cấp visual layer (token + component style).
+- Theme chủ đạo quay về **accent xanh**.
+- `StoryLibrary`:
+  - Nút mở Bảng Điều Khiển nằm cùng hàng tiêu đề, không rơi xuống giữa card.
+  - Modal dùng nút `Quay lại` thay `X`.
+  - Chuẩn hóa tiêu đề thành `Bảng Điều Khiển Thư Viện`.
+- Áp chuẩn label A2 + B1 + C1 + D1 (4 lớp label, sentence/title case, Việt hóa ưu tiên).
+
+### Gate kỹ thuật (đợt bổ sung)
+
+- `npm run lint` ✅ pass
+- `npm run build` ✅ pass
+- `npx cap sync android` ✅ pass
+- `npm run qa` ✅ smoke pass (`Failed: 0`, `Warnings: 0`); vẫn dừng ở script Node do `indexedDB is not defined` (không phải regression app runtime)
+- `android/.\\gradlew assembleDebug` ✅ pass
+
+### Kết luận rủi ro
+
+- Không phát hiện regression chức năng chính qua gate hiện có.
+- Rủi ro thấp, thay đổi tập trung visual + label consistency + docs/rules onboarding cho chat mới.

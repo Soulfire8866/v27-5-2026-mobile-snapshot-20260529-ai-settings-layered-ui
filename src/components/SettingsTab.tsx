@@ -296,7 +296,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
   ];
 
   return (
-    <div className="space-y-6" id="settings-tab-panel">
+    <div className="space-y-6 animate-fade-up-soft" id="settings-tab-panel">
       {onUpdateSetting && (
         <div className={`${uiPanel} space-y-3`} id="app-color-scheme-settings">
           <div>
@@ -336,11 +336,12 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
       )}
 
       {/* Intro Banner */}
-      <div className={uiBannerHero}>
+      <div className={`${uiBannerHero} relative overflow-hidden`}>
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_18%_20%,rgba(255,255,255,0.22),transparent_45%)]" />
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <Shield className="w-5.5 h-5.5 text-amber-500 animate-pulse" />
-            <h2 className="text-base font-bold uppercase tracking-wide">Trung Tâm Cấu Hình & Máy Dịch Đa Nền Tảng</h2>
+            <h2 className="text-base font-bold tracking-tight">Trung tâm cấu hình & máy dịch đa nền tảng</h2>
           </div>
           <p className="text-xs text-white/75 max-w-2xl leading-relaxed">
             Áp đặt và tinh chỉnh các đầu API Key bảo mật. Hỗ trợ xoay vòng tải luân phiên để tránh lỗi rate limit của tài khoản.
@@ -372,7 +373,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
           <div className={`${uiPanel} !p-5 space-y-5`}>
             <div className="flex items-center gap-2 pb-3 border-b border-app-border">
               <Key className="w-5 h-5 text-amber-500" />
-              <h3 className={`${uiLabel} !text-xs !tracking-widest`}>Kén Chọn Nhập API Key</h3>
+              <h3 className={`${uiLabel} !text-xs`}>Nhập API key</h3>
             </div>
 
             <p className={`${uiCaption} !text-[11px] italic select-none`}>
@@ -555,7 +556,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
           <div className={`${uiPanel} !p-5 space-y-4`}>
             <div className="flex items-center gap-2 pb-3 border-b border-app-border">
               <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
-              <h3 className={`${uiLabel} !text-xs !tracking-widest`}>Cấu Hình Lập Luận Dịch Thuật</h3>
+              <h3 className={`${uiLabel} !text-xs`}>Cấu hình lập luận dịch thuật</h3>
             </div>
 
             <div className="space-y-4">
@@ -604,7 +605,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
               </div>
 
               <div className="bg-amber-500/5 border border-amber-500/25 rounded-lg p-4 text-[10.5px] leading-relaxed text-amber-900 dark:text-amber-400 space-y-1.5">
-                <span className="font-bold flex items-center gap-1">CÀI ĐẶT AN TOÀN TRÁNH TRÀO LƯU RATE LIMIT:</span>
+                <span className="font-bold flex items-center gap-1">Cài đặt an toàn tránh trào lưu rate limit:</span>
                 <p>• <strong>Gói Google MIỄN PHÍ:</strong> Bắt buộc đặt <strong>1 Luồng</strong>. Hạn mức Free Tier của Google AI Studio chỉ cho phép gọi 15 yêu cầu trên một phút, gọi nhiều hơn sẽ bị block lỗi 429.</p>
                 <p>• <strong>Gói Vertex / Studio PAY-AS-YOU-GO:</strong> Đặt <strong>2 - 3 Luồng</strong> để dịch song song nhiều chương trong Lab Dịch (Dịch toàn bộ / Dịch chương đã chọn).</p>
                 <p>• <strong>Chương 15–30 nghìn chữ:</strong> Cùng cài đặt này còn cho phép dịch <strong>tối đa 3 đoạn trong cùng một chương</strong> song song (DeepSeek, GPT, Claude, Qwen…). Giữ <strong>1 luồng</strong> nếu dùng Gemini free hoặc ưu tiên đồng nhất tên/xưng hô hơn tốc độ.</p>
@@ -683,7 +684,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
             <div className="flex items-center justify-between pb-3 border-b border-app-border">
               <div className="flex items-center gap-2">
                 <Cpu className="w-5 h-5 text-amber-500" />
-                <h3 className={`${uiLabel} !text-xs !tracking-widest`}>Ưu Tiên Chọn Model AI Nhãn</h3>
+                <h3 className={`${uiLabel} !text-xs`}>Ưu tiên chọn model AI</h3>
               </div>
               <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-semibold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider">
                 {MODELS_DATABASE.length} Models

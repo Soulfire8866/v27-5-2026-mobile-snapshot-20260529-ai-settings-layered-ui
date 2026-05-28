@@ -1,4 +1,4 @@
-# UI/UX Micro Polish Spec (Phase 1)
+# UI/UX Micro Polish Spec (Phase 1 + Visual Refresh)
 
 Tài liệu này khóa chuẩn vi mô để nâng độ hoàn thiện thị giác và tính nhất quán UX.
 
@@ -48,7 +48,7 @@ Tài liệu này khóa chuẩn vi mô để nâng độ hoàn thiện thị giá
 
 ## 6) Typography polish (6A + 6B)
 
-- Label dùng uppercase nhẹ cho nhóm kỹ thuật.
+- Label không uppercase hàng loạt; ưu tiên sentence/title case theo ngữ cảnh.
 - Caption ưu tiên ngắn gọn, tránh câu dài > 2 dòng trên mobile.
 - Path/ID dài dùng truncation, giữ thông tin quan trọng ở cuối/tên file.
 
@@ -70,3 +70,28 @@ Tài liệu này khóa chuẩn vi mô để nâng độ hoàn thiện thị giá
 - `StoryLibrary` (Library tools modal): safe-area baseline + inline feedback + CTA clarity.
 - `VFSManager`: editor safety + inline feedback + hierarchy/action clarity.
 - `ui.ts`: state behavior nền cho button/input/card.
+
+## 9) Visual refresh baseline (WP-style tham chiếu, không đổi logic)
+
+- Chỉ chỉnh “skin layer”: token màu, depth, motion, label hierarchy; không đổi nghiệp vụ.
+- Theme chủ đạo hiện tại: **accent xanh** (`app-accent`) sau khi hoàn tất đối chiếu người dùng.
+- Modal/sheet:
+  - Ưu tiên overlay mờ + sheet handle nhẹ.
+  - Nút thoát ưu tiên đồng nhất với app (`Quay lại`) khi là màn thao tác nhiều bước.
+- `StoryLibrary`:
+  - Nút mở Bảng Điều Khiển phải cùng hàng với tiêu đề `Thư Viện Sách Offline` (góc phải).
+  - Tiêu đề chuẩn: `Bảng Điều Khiển Thư Viện`.
+  - Tránh nhãn tiếng Anh dư như `Bookshelf View`, `(Grid)`, `(List)` trong UI người dùng.
+
+## 10) Label system khóa chuẩn (A2 + B1 + C1 + D1)
+
+- 4 lớp cố định:
+  - `Title`: `uiTitle` (15/16px, semibold)
+  - `Section`: `uiLabel` (11px, semibold)
+  - `Field`: `uiFieldLabel` (11px, semibold)
+  - `Caption`: `uiCaption` (12px)
+- Casing:
+  - Title/sentence case cho tiêu đề + mô tả.
+  - UPPERCASE chỉ cho badge/tag ngắn.
+- Ngôn ngữ:
+  - UI người dùng ưu tiên tiếng Việt; chỉ giữ thuật ngữ Anh khi bắt buộc kỹ thuật.

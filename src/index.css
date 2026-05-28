@@ -9,12 +9,12 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   /* Visual PA-1: semantic palette + depth contrast */
-  --color-app-bg: #f6f2ea;
-  --color-app-surface: #fffdf8;
-  --color-app-surface-muted: #f0eae0;
-  --color-app-text: #1d1a16;
-  --color-app-text-muted: #615a50;
-  --color-app-border: #d7cfc2;
+  --color-app-bg: #fff8f4;
+  --color-app-surface: #ffffff;
+  --color-app-surface-muted: #fff1e8;
+  --color-app-text: #211813;
+  --color-app-text-muted: #726157;
+  --color-app-border: #efd4c2;
   --color-app-accent: #0f766e;
   --color-app-accent-hover: #0b5f59;
   --color-app-success: #0f9f67;
@@ -27,12 +27,12 @@
 }
 
 .dark {
-  --color-app-bg: #101216;
-  --color-app-surface: #171b22;
-  --color-app-surface-muted: #202631;
-  --color-app-text: #ece7de;
-  --color-app-text-muted: #aba497;
-  --color-app-border: #353d4a;
+  --color-app-bg: #120f15;
+  --color-app-surface: #1a1520;
+  --color-app-surface-muted: #241c2d;
+  --color-app-text: #f0e7e1;
+  --color-app-text-muted: #b8a59a;
+  --color-app-border: #3b2e3a;
   --color-app-accent: #67c3bb;
   --color-app-accent-hover: #86d9d2;
   --color-app-success: #4fd49f;

@@ -1399,23 +1399,23 @@ export default function App() {
         
         {/* Render Tab Views */}
         {activeTab === "home" && (
-          <div className="flex-1 flex flex-col justify-center items-center py-4 md:py-8 px-4 max-w-md w-full mx-auto select-none my-auto animate-fade-up-soft">
+          <div className="flex-1 flex flex-col justify-center items-center py-4 md:py-8 px-4 max-w-lg w-full mx-auto select-none my-auto animate-fade-up-soft">
             
             {/* Header branding — tối giản kiểu Kindle */}
-            <div className={`w-full flex flex-col items-center text-center py-5 px-4 ${uiCard} mb-4 relative overflow-hidden`}>
-              <div className="absolute inset-0 bg-gradient-to-br from-app-accent/10 via-transparent to-app-accent/5 pointer-events-none" />
-              <div className="relative h-16 w-16 bg-app-accent rounded-2xl flex items-center justify-center mb-2 shadow-[0_10px_22px_rgba(15,118,110,0.35)]">
+            <div className={`w-full flex flex-col items-center text-center py-5 px-4 mb-4 relative overflow-hidden rounded-[1.35rem] border border-app-border bg-gradient-to-br from-app-accent to-app-accent-hover text-white shadow-[0_14px_30px_color-mix(in_srgb,var(--color-app-accent)_30%,transparent)]`}>
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.22),transparent_42%),radial-gradient(circle_at_82%_100%,rgba(0,0,0,0.18),transparent_45%)] pointer-events-none" />
+              <div className="relative h-16 w-16 bg-white/18 rounded-2xl flex items-center justify-center mb-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_10px_22px_rgba(0,0,0,0.24)]">
                 <PandaBrandIcon className="w-16 h-16" />
               </div>
-              <h1 className="text-[15px] font-semibold text-app-text tracking-tight mt-1 leading-snug">
+              <h1 className="text-[20px] font-bold tracking-tight mt-1 leading-snug">
                 Novel Translator for Fun
               </h1>
-              <p className={`${uiCaption} mt-0.5`}>
+              <p className="text-white/80 text-sm mt-0.5 font-medium">
                 Nguyễn Thái Dũng
               </p>
             </div>
 
-            <div className={`w-full ${uiCard} p-2.5 flex flex-col gap-1.5`}>
+            <div className={`w-full ${uiCard} p-2.5 flex flex-col gap-2`}>
               {[
                 { id: "library", label: "Thư Viện", emoji: "📚", desc: "Quản lý tác phẩm & nạp chương mới", icon: Library },
                 { id: "editor", label: "Lab Dịch", emoji: "✍️", desc: "So sánh dịch thuật & biên tập nội dung", icon: FileText },
@@ -1434,22 +1434,22 @@ export default function App() {
                       setTranslationError(null);
                       setBatchErrors(null);
                     }}
-                    className={`${uiMenuRow} group`}
+                    className={`${uiMenuRow} group border-l-[3px] border-l-transparent hover:border-l-app-accent hover:-translate-y-[1px]`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={uiIconBox}>
+                      <div className={`${uiIconBox} bg-gradient-to-br from-app-surface to-app-surface-muted`}>
                         <IconComp className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium block truncate leading-tight">
+                        <span className="text-[17px] font-semibold block truncate leading-tight tracking-tight">
                           {tab.emoji} {tab.label}
                         </span>
-                        <span className="text-[11px] block truncate mt-0.5 text-app-text-muted">
+                        <span className="text-[13px] block truncate mt-0.5 text-app-text-muted">
                           {tab.desc}
                         </span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 shrink-0 opacity-50 text-app-text-muted" />
+                    <ChevronRight className="w-4 h-4 shrink-0 opacity-70 text-app-accent" />
                   </button>
                 );
               })}

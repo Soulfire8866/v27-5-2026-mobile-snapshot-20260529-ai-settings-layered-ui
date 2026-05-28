@@ -4,7 +4,7 @@
 **Repo hiện tại:** `v27.5.2026 mobile` (thư mục gốc, ví dụ `E:\v27.5.2026 mobile`) — kế thừa codebase từ `mobile_v3` / `v24.5.2026 mobile_v3`.  
 **Mục đích tài liệu:** Ghi nhận nguyên tắc, quyết định đã chốt, kiến trúc và hướng xử lý bắt buộc khi tiếp quản sửa lỗi / nâng cấp / tối ưu.  
 **Ngôn ngữ sản phẩm:** UI và nội dung người dùng chủ yếu **tiếng Việt**.  
-**Cập nhật:** 2026-05-27 (đổi tên repo; Lab chrome, quét tên PA-3, sửa APK thực tế).
+**Cập nhật:** 2026-05-29 (bổ sung chuẩn Visual UI/Label + Library Control Panel).
 
 ---
 
@@ -46,10 +46,12 @@
 4. **Tách module có chủ đích** — Ví dụ HV offline: `src/utils/hanVietOffline.ts` (không nhét lại `ReaderView.tsx`).
 5. **Không commit / push** trừ khi user yêu cầu rõ.
 
-### 3.2 UI / UX (Kindle-inspired)
+### 3.2 UI / UX (Modern mobile, accent xanh)
 
-- Nền giấy / dark zinc; accent teal `app-accent`.
+- Giữ bộ token trong `src/index.css` + class hệ thống trong `src/lib/ui.ts`; **không hardcode palette lẻ** nếu có thể dùng `app-*`.
+- Theme chủ đạo hiện tại: **accent xanh** (`--color-app-accent` light/dark), không đổi sang cam khi chưa có xác nhận mới.
 - Nút: `min-h-10`, `truncate` cho text dài; tiêu đề chương **luôn `truncate`**.
+- Label: ưu tiên sentence/title case; chỉ dùng uppercase cho badge/tag rất ngắn.
 - **Tương phản:** Chỉ dùng class Tailwind **hợp lệ** (`text-sky-600`, không `text-sky-650`). Overlay modal: `z-[55]` hoặc `z-50`, không `z-55`.
 - **Safe area Android:** `env(safe-area-inset-top)` + tối thiểu 28px; **không** dùng `!pt-0` trên phần tử có class `lab-chrome-safe-top` (sẽ xóa padding và đè status bar).
 
@@ -72,6 +74,9 @@ src/
     CompareView.tsx       # Lab: đối chiếu & hiệu đính
     ReaderView.tsx        # Phòng Đọc (re-export getHanVietOffline)
     DictManager.tsx       # Từ điển + quét tên popup
+    StoryLibrary.tsx      # Thư viện + Bảng Điều Khiển Thư Viện
+    SettingsTab.tsx       # Cấu hình AI/API + label system chuẩn
+    VFSManager.tsx        # Sao lưu/khôi phục + file editor
   utils/
     chapterTranslationEngine.ts
     nameScanPipeline.ts   # PA-3, 5B Lab, 6BC noise, 10A/B/C
@@ -197,6 +202,31 @@ Khi user báo âm HV sai: bổ sung nhánh theo **ký tự Hán**, không chỉ 
 
 ---
 
+## 7B. Thư Viện & Bảng Điều Khiển Thư Viện (đã chốt)
+
+- Nút mở bảng điều khiển trong `StoryLibrary` phải nằm **cùng hàng** tiêu đề `Thư Viện Sách Offline` (góc phải), không rơi xuống hàng giữa card.
+- Dùng icon điều khiển (hiện tại `SlidersHorizontal`) thay cho dấu `...` dọc.
+- Tiêu đề modal chuẩn: **`Bảng Điều Khiển Thư Viện`**.
+- Nút thoát modal dùng pattern **`Quay lại` + `ChevronLeft`**, không dùng `X` đơn lẻ để đồng bộ với màn khác.
+- Trong nội dung user-facing, ưu tiên Việt hóa nhất quán (vd. không để `Bookshelf View`, `(Grid)`, `(List)` nếu không cần thiết).
+
+---
+
+## 7C. Chuẩn label toàn app (A2 + B1 + C1 + D1)
+
+- Áp dụng theo 4 lớp:
+  1. **Title**: `uiTitle` (text-base/15px, semibold).
+  2. **Section label**: `uiLabel` (`text-[11px]`, semibold, tracking nhẹ, **không uppercase mặc định**).
+  3. **Field label**: `uiFieldLabel` (`text-[11px]`, semibold, tracking nhẹ).
+  4. **Caption/helper**: `uiCaption` (`text-xs`).
+- Casing:
+  - Tiêu đề: Title/Sentence case (tiếng Việt tự nhiên).
+  - Mô tả: sentence case.
+  - UPPERCASE chỉ cho chip/badge ngắn.
+- Ngôn ngữ: UI người dùng ưu tiên **tiếng Việt**; chỉ giữ thuật ngữ Anh khi thật sự kỹ thuật và cần thiết.
+
+---
+
 ## 8. Lỗi / regression đã sửa (không tái phạm)
 
 | Vấn đề | Cách xử lý |
@@ -208,6 +238,8 @@ Khi user báo âm HV sai: bổ sung nhánh theo **ký tự Hán**, không chỉ 
 | `text-sky-650`, `z-55` | `text-sky-600`, `z-[55]` |
 | Lab gán nhầm tên (十分→Sở Hoan) | `isLabMatchPlausible`, noise set, bỏ loose regex |
 | Tiêu đề dọc / «Biên dịch song song» | Header 2 hàng, đổi tên Lab Dịch |
+| Nút mở Library Control lệch bố cục | Ép cùng hàng tiêu đề, icon control rõ nghĩa |
+| Back trong Library Control không đồng nhất | Dùng nút `Quay lại` + icon trái, bỏ `X` đơn lẻ |
 
 ---
 

@@ -1,6 +1,6 @@
 ---
-description: Lab Dịch, quét tên, Phòng Đọc, APK Android — vùng rủi ro cao / đang hoàn thiện
-globs: src/App.tsx,src/components/CompareView.tsx,src/components/DictManager.tsx,src/components/ReaderView.tsx,src/utils/nameScanPipeline.ts,src/utils/hanVietOffline.ts,src/index.css,src/utils/systemChrome.ts,android/**/*
+description: Lab Dịch, quét tên, Phòng Đọc, Library/VFS/Settings, APK Android — vùng rủi ro cao / đang hoàn thiện
+globs: src/App.tsx,src/components/CompareView.tsx,src/components/DictManager.tsx,src/components/ReaderView.tsx,src/components/StoryLibrary.tsx,src/components/VFSManager.tsx,src/components/SettingsTab.tsx,src/lib/ui.ts,src/utils/nameScanPipeline.ts,src/utils/hanVietOffline.ts,src/index.css,src/utils/systemChrome.ts,android/**/*
 alwaysApply: false
 ---
 
@@ -35,3 +35,10 @@ alwaysApply: false
 ## UI
 
 - Class Tailwind hợp lệ (`text-sky-600`, `z-[55]`). `option value="history"` không có typo.
+- Theme chủ đạo hiện tại giữ accent xanh (`app-accent`), không tự ý đổi tông chủ đạo.
+- Label system:
+  - `uiLabel`/`uiFieldLabel`: sentence/title case, không ép uppercase hàng loạt.
+  - UPPERCASE chỉ cho badge/tag ngắn.
+- `StoryLibrary`:
+  - Nút mở Bảng Điều Khiển Thư Viện phải cùng hàng tiêu đề, không rơi xuống giữa card.
+  - Modal control dùng nút `Quay lại` (icon trái + text), không dùng `X` đơn lẻ.

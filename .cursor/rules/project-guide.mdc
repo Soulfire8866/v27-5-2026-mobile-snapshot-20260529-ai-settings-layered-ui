@@ -11,6 +11,8 @@ Khi **sửa, nâng cấp hoặc debug** repo này:
 2. Repo hiện tại: **`v27.5.2026 mobile`** (kế thừa `mobile_v3`). Không giả định đường dẫn `v24.5.2026 mobile_v3`.
 3. **Diff tối thiểu**; dùng `src/lib/ui.ts` và token `app-*`; không commit/push trừ khi user yêu cầu.
 4. UI tiếng Việt; giải thích cho user bằng tiếng Việt.
+5. Theme chủ đạo hiện tại giữ **accent xanh**; không đổi tông chủ đạo khi chưa được user xác nhận.
+6. Label UI theo chuẩn mới: ưu tiên sentence/title case; chỉ uppercase cho badge/tag ngắn.
 
 ## Quy trình khi user nêu vấn đề / đề xuất tính năng
 
@@ -30,3 +32,11 @@ Khi **sửa, nâng cấp hoặc debug** repo này:
 - User yêu cầu rõ «sửa ngay», «implement», «làm đợt X» sau khi đã chốt trước đó.
 
 Chi tiết kiến trúc, Lab, quét tên PA-3, Phòng Đọc, build APK: xem guide — không copy nguyên guide vào rule này.
+
+## Điểm chốt UI gần đây (bắt buộc tôn trọng)
+
+- `StoryLibrary`:
+  - Nút mở **Bảng Điều Khiển Thư Viện** nằm cùng hàng tiêu đề `Thư Viện Sách Offline` (góc phải), không rơi xuống giữa card.
+  - Trong modal, dùng nút **Quay lại** (icon trái + text), không dùng nút `X` đơn lẻ.
+  - Tiêu đề chuẩn: `Bảng Điều Khiển Thư Viện`.
+- Khi chỉnh visual: ưu tiên sửa qua `src/index.css` token + `src/lib/ui.ts`; hạn chế hardcode class màu rải rác.
