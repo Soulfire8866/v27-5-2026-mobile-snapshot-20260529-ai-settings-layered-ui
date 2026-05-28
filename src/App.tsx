@@ -296,7 +296,7 @@ export default function App() {
             ),
             readerFillPercent: Math.max(
               87,
-              Math.min(93, Number(storedSettings.readerFillPercent) || DEFAULT_SETTINGS.readerFillPercent || 90)
+              Math.min(100, Number(storedSettings.readerFillPercent) || DEFAULT_SETTINGS.readerFillPercent || 90)
             ),
           });
         }

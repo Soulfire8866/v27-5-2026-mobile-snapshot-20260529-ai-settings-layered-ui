@@ -33,7 +33,10 @@ import {
   type PaginateOptions,
 } from "../utils/readerPaginateChapter";
 import {
-  computeReaderPageViewport,
+  buildReaderNativeParagraphStyle,
+  paragraphMayShowInlineTranslateAction,
+  READER_LAB_BANNER_RESERVE_PX,
+  readerTextMayShowInlineTranslateAction,
   type ReaderPageViewport,
 } from "../utils/readerPageLayout";
 import {
@@ -391,7 +394,11 @@ function readerPageViewportsEqual(a: ReaderPageViewport, b: ReaderPageViewport):
     a.padX === b.padX &&
     a.padY === b.padY &&
     a.padTop === b.padTop &&
-    a.padBottom === b.padBottom
+    a.padBottom === b.padBottom &&
+    a.targetHeight === b.targetHeight &&
+    a.quantizedHeight === b.quantizedHeight &&
+    a.exactLineHeightPx === b.exactLineHeightPx &&
+    a.columnWidthPx === b.columnWidthPx
   );
 }
 
@@ -451,6 +458,7 @@ export default function ReaderView({
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageContentRef = useRef<HTMLDivElement>(null);
   const paginationMeasureRef = useRef<HTMLDivElement>(null);
@@ -466,6 +474,11 @@ export default function ReaderView({
     padY: 8,
     padTop: 8,
     padBottom: 8,
+    rawAvailableHeight: 600,
+    targetHeight: 600,
+    quantizedHeight: 600,
+    exactLineHeightPx: 32,
+    columnWidthPx: 320,
   });
   const [pages, setPages] = useState<PageContent[]>([]);
 
@@ -504,7 +517,7 @@ export default function ReaderView({
 
   const buildPaginateOpts = (reserveBanner: boolean): PaginateOptions => ({
     widthIsContentBox: true,
-    heightReservePx: reserveBanner ? 44 : 0,
+    heightReservePx: reserveBanner ? READER_LAB_BANNER_RESERVE_PX : 0,
     measureRoot: paginationMeasureRef.current,
   });
 
@@ -752,10 +765,11 @@ export default function ReaderView({
     let h = 600;
     let w = 800;
     if (readMode === "page") {
-      const vp = computeReaderPageViewport(settings, { isMobile, readMode });
-      h = vp.height;
-      w = vp.width;
-      setPageViewport((prev) => (readerPageViewportsEqual(prev, vp) ? prev : vp));
+      h = pageViewport.quantizedHeight;
+      if (readerTextMayShowInlineTranslateAction(textToPaginate)) {
+        h = Math.max(pageViewport.exactLineHeightPx, h - pageViewport.exactLineHeightPx);
+      }
+      w = pageViewport.width;
     }
 
     const baseKey = [
@@ -814,7 +828,26 @@ export default function ReaderView({
     isFullyTranslated,
     skipDomMeasure,
     resolvePagesWithCache,
+    pageViewport.quantizedHeight,
+    pageViewport.width,
   ]);
+
+  const paginationKey = React.useMemo(
+    () =>
+      `${pageViewport.width}x${pageViewport.quantizedHeight}x${pageViewport.targetHeight}x${pageViewport.exactLineHeightPx}x${settings.readerWidth}x${settings.readerPaddingX}x${settings.readerFillPercent}x${settings.readerFontSize}x${settings.readerLineHeight}x${settings.readerAlignment}`,
+    [
+      pageViewport.width,
+      pageViewport.quantizedHeight,
+      pageViewport.targetHeight,
+      pageViewport.exactLineHeightPx,
+      settings.readerWidth,
+      settings.readerPaddingX,
+      settings.readerFillPercent,
+      settings.readerFontSize,
+      settings.readerLineHeight,
+      settings.readerAlignment,
+    ]
+  );
 
   useEffect(() => {
     if (!currentChapter) {
@@ -835,27 +868,11 @@ export default function ReaderView({
         domPaginateIdleRef.current = null;
       }
     };
-  }, [currentChapter?.id, readMode, runPagination]);
+  }, [currentChapter?.id, readMode, runPagination, paginationKey]);
 
   pagesRef.current = pages;
   translatedPagesRef.current = translatedPages;
   currentPageIndexRef.current = currentPageIndex;
-
-  const paginationKey = React.useMemo(
-    () =>
-      `${pageViewport.width}x${pageViewport.height}x${settings.readerWidth}x${settings.readerPaddingX}x${settings.readerFillPercent}x${settings.readerFontSize}x${settings.readerLineHeight}x${settings.readerParagraphSpacing}x${settings.readerAlignment}`,
-    [
-      pageViewport.width,
-      pageViewport.height,
-      settings.readerWidth,
-      settings.readerPaddingX,
-      settings.readerFillPercent,
-      settings.readerFontSize,
-      settings.readerLineHeight,
-      settings.readerParagraphSpacing,
-      settings.readerAlignment,
-    ]
-  );
 
   const stableTranslatedPageCacheRef = useRef<Record<string, Record<number, string>>>({});
 
@@ -879,30 +896,84 @@ export default function ReaderView({
 
   const hasCurrentPageContent = (pages[currentPageIndex]?.paragraphs?.length ?? 0) > 0;
 
+  const currentPageHasInlineTranslateAction = React.useMemo(() => {
+    const paras = pages[currentPageIndex]?.paragraphs ?? [];
+    return paras.some((p) => p?.text && paragraphMayShowInlineTranslateAction(p.text));
+  }, [pages, currentPageIndex]);
+
+  const pageColumnQuantizedHeightPx = React.useMemo(() => {
+    const safetyPx = currentPageHasInlineTranslateAction ? pageViewport.exactLineHeightPx : 0;
+    return Math.max(pageViewport.exactLineHeightPx, pageViewport.quantizedHeight - safetyPx);
+  }, [pageViewport.quantizedHeight, pageViewport.exactLineHeightPx, currentPageHasInlineTranslateAction]);
+
+  const pageColumnBufferedHeightPx = React.useMemo(
+    () => pageColumnQuantizedHeightPx + 2,
+    [pageColumnQuantizedHeightPx]
+  );
+
+  const pageColumnCssVars = React.useMemo(
+    () =>
+      ({
+        ["--exact-lh" as string]: `${pageViewport.exactLineHeightPx}px`,
+        ["--max-h" as string]: `${pageColumnBufferedHeightPx}px`,
+      }) as React.CSSProperties,
+    [pageViewport.exactLineHeightPx, pageColumnBufferedHeightPx]
+  );
+
+  const nativeParagraphStyle = React.useMemo(
+    () => buildReaderNativeParagraphStyle(settings, pageViewport.exactLineHeightPx),
+    [settings, pageViewport.exactLineHeightPx]
+  );
+
   const updatePageViewport = useCallback(() => {
     if (readMode !== "page") return;
-    const next = computeReaderPageViewport(settings, { isMobile, readMode });
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const rawWrapperWidth = Math.max(260, Math.floor(wrapper.clientWidth));
+    const rawHeight = Math.max(200, Math.floor(wrapper.clientHeight));
+    const fillLevel = Math.max(87, Math.min(100, settings.readerFillPercent ?? 90));
+    const targetHeight = Math.max(200, Math.floor(rawHeight * (fillLevel / 100)));
+    const fontSizePx = Math.max(12, settings.readerFontSize || 16);
+    const lineHeightRatio = Math.max(1, settings.readerLineHeight || 1.6);
+    const integerLineHeight = Math.max(1, Math.round(fontSizePx * lineHeightRatio));
+    const maxLines = Math.max(1, Math.floor(targetHeight / integerLineHeight));
+    const quantizedHeight = maxLines * integerLineHeight;
+    const padX = Math.max(0, Math.min(48, settings.readerPaddingX ?? 12));
+    const columnWidth = Math.max(220, rawWrapperWidth - padX * 2);
+    const next: ReaderPageViewport = {
+      width: columnWidth,
+      height: quantizedHeight,
+      outerWidth: rawWrapperWidth,
+      outerHeight: rawHeight,
+      padX,
+      padY: 0,
+      padTop: 0,
+      padBottom: 0,
+      rawAvailableHeight: rawHeight,
+      targetHeight,
+      quantizedHeight,
+      exactLineHeightPx: integerLineHeight,
+      columnWidthPx: columnWidth,
+    };
     setPageViewport((prev) => (readerPageViewportsEqual(prev, next) ? prev : next));
   }, [
     readMode,
-    isMobile,
     settings.readerPaddingX,
     settings.readerFontSize,
     settings.readerLineHeight,
-    settings.readerParagraphSpacing,
-    settings.readerWidth,
-    settings.readerFillPercent
+    settings.readerFillPercent,
   ]);
 
   useLayoutEffect(() => {
     if (readMode !== "page") return;
     updatePageViewport();
-    const vv = window.visualViewport;
-    window.addEventListener("resize", updatePageViewport);
-    vv?.addEventListener("resize", updatePageViewport);
+    const ro =
+      typeof ResizeObserver !== "undefined" && wrapperRef.current
+        ? new ResizeObserver(() => updatePageViewport())
+        : null;
+    if (ro && wrapperRef.current) ro.observe(wrapperRef.current);
     return () => {
-      window.removeEventListener("resize", updatePageViewport);
-      vv?.removeEventListener("resize", updatePageViewport);
+      ro?.disconnect();
     };
   }, [readMode, updatePageViewport]);
 
@@ -2517,16 +2588,12 @@ export default function ReaderView({
       
       {/* Top chrome — dưới status bar; không viền sáng (B-Reader) */}
       <div
-        className={`left-0 right-0 z-40 select-none backdrop-blur-md transition-transform duration-300 ${
-          barsOverlay
-            ? `absolute top-0 ${readerTheme.chromeBarBg} ${
-                !showBarsOnMobile
-                  ? "-translate-y-full pointer-events-none"
-                  : "translate-y-0"
-              }`
-            : isMobile && !showBarsOnMobile
-              ? "hidden h-0 overflow-hidden p-0"
-              : `shrink-0 ${readerTheme.chromeBarBg}`
+        className={`absolute top-0 left-0 right-0 z-50 select-none backdrop-blur-md transition-all duration-300 ${
+          readerTheme.chromeBarBg
+        } ${
+          isMobile && !showBarsOnMobile
+            ? "-translate-y-full opacity-0 pointer-events-none"
+            : "translate-y-0 opacity-100"
         }`}
         style={
           barsOverlay
@@ -2839,19 +2906,19 @@ export default function ReaderView({
                 <div className="flex justify-between text-[10px] uppercase font-bold text-zinc-500">
                   <span>Mức fill chiều cao</span>
                   <span className="font-mono text-zinc-800 dark:text-zinc-200">
-                    {Math.max(87, Math.min(93, settings.readerFillPercent ?? 90))}%
+                    {Math.max(87, Math.min(100, settings.readerFillPercent ?? 90))}%
                   </span>
                 </div>
                 <input
                   type="range"
                   min={87}
-                  max={93}
+                  max={100}
                   step={1}
-                  value={Math.max(87, Math.min(93, settings.readerFillPercent ?? 90))}
+                  value={Math.max(87, Math.min(100, settings.readerFillPercent ?? 90))}
                   onChange={(e) =>
                     onUpdateSettings({
                       ...settings,
-                      readerFillPercent: Math.max(87, Math.min(93, parseInt(e.target.value, 10) || 90))
+                      readerFillPercent: Math.max(87, Math.min(100, parseInt(e.target.value, 10) || 90))
                     })
                   }
                   className="w-full accent-amber-500 h-1.5 rounded bg-zinc-100 dark:bg-zinc-800 cursor-pointer"
@@ -3405,17 +3472,40 @@ export default function ReaderView({
       )}
 
       {autoTranslateHint && (
-        <div className="shrink-0 mx-3 mt-1 px-3 py-2 rounded-lg border border-sky-500/35 bg-sky-500/10 text-[10px] font-semibold text-sky-800 dark:text-sky-200 text-center leading-snug">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-[45] px-3 py-2 rounded-lg border border-sky-500/35 bg-sky-500/10 text-[10px] font-semibold text-sky-800 dark:text-sky-200 text-center leading-snug"
+          style={{
+            top: barsOverlay
+              ? `calc(var(--reader-safe-top, ${readerSafeTopCss()}) + ${READER_TOOLBAR_HEIGHT_PX + 8}px)`
+              : `${READER_TOOLBAR_HEIGHT_PX + 8}px`,
+          }}
+        >
           {autoTranslateHint}
         </div>
       )}
 
-      {/* Reading Core Stage — khung chữ cố định ~91% màn hình, mọi trang cùng kích thước */}
+      {/* Reading Core Stage — đo bottom-up từ DOM thực tế của wrapper an toàn */}
+      <div
+        ref={wrapperRef}
+        className={isPageLayout ? "z-0 overflow-hidden" : "flex-1 min-h-0 w-full overflow-hidden"}
+        style={
+          isPageLayout
+            ? {
+                position: "fixed",
+                top: "env(safe-area-inset-top, 0px)",
+                bottom: "env(safe-area-inset-bottom, 0px)",
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                display: "block",
+                overflow: "hidden",
+              }
+            : undefined
+        }
+      >
       <div
         ref={containerRef}
-        className={`flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden ${
-          barsOverlay ? "relative z-0" : ""
-        }`}
+        className={isPageLayout ? "absolute inset-0 overflow-hidden" : "w-full h-full overflow-hidden flex items-center justify-center"}
       >
       <div 
         ref={pageContentRef}
@@ -3432,57 +3522,88 @@ export default function ReaderView({
       >
         {readMode === "page" ? (
           hasCurrentPageContent ? (
-            <div 
-              className={`h-full w-full flex flex-col overflow-hidden ${fontClass} ${alignmentClass} leading-relaxed`}
-              style={{ 
-                fontSize: `${settings.readerFontSize}px`,
-                lineHeight: settings.readerLineHeight
-              }}
-            >
+            <div className="w-full overflow-hidden">
               {!isFullyTranslated && (
                 <p className="text-[10px] text-center text-amber-600/90 dark:text-amber-400/90 font-semibold mb-2 px-2 leading-snug shrink-0">
                   {rs.chrome.labBannerPaged}
                 </p>
               )}
-              <div className="flex-1 min-h-0 w-full overflow-hidden">
-              {(pages[currentPageIndex]?.paragraphs ?? []).map((paraObj, pIdx) => {
-                if (!paraObj) return null;
-                const paragraph = paraObj.text;
-                const index = paraObj.originalIndex;
-                if (!paragraph.trim()) return null;
-                const hasChinese = /[\u4e00-\u9fa5]{3,}/.test(paragraph);
-                const pageParas = pages[currentPageIndex]?.paragraphs ?? [];
-                const isLastPara = pIdx === pageParas.length - 1;
-                return (
-                  <p 
-                    key={pIdx} 
-                    data-index={index}
-                    className="transition-colors duration-200 hover:text-amber-600 focus:outline-none relative group leading-relaxed"
-                    style={{
-                      marginBottom: isLastPara ? 0 : `${settings.readerParagraphSpacing}px`,
-                      textIndent: `${READER_TEXT_INDENT_EM}em`,
-                    }}
-                  >
-                    {paragraph.trim()}
-                    {hasChinese && (
-                      <span className="inline-flex items-center ml-2 select-none">
-                        <button 
-                          disabled={isTranslatingParagraphId === index}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTranslateParagraph(index, paragraph);
-                          }}
-                          className="inline-flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-amber-500 hover:text-white transition-all ml-1.5"
-                          title="Đoạn văn này có chứa Hán tự chưa dịch."
-                        >
-                          <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                          {isTranslatingParagraphId === index ? "Đang dịch..." : "Dịch Hán VĒn sót"}
-                        </button>
-                      </span>
-                    )}
-                  </p>
-                );
-              })}
+              <div
+                className="reader-page-quantized-wrapper"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  height: `${pageViewport.targetHeight}px`,
+                  width: "100%",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  className={`reader-page-column ${fontClass}`}
+                  style={{
+                    ...pageColumnCssVars,
+                    height: "var(--max-h)",
+                    width: "100%",
+                    display: "block",
+                    lineHeight: "var(--exact-lh)",
+                    columnWidth: "100vw",
+                    columnGap: "0px",
+                    columnFill: "auto",
+                    boxSizing: "content-box",
+                    WebkitTextSizeAdjust: "100%",
+                    textSizeAdjust: "100%",
+                    overflow: "hidden",
+                  }}
+                >
+                  {(pages[currentPageIndex]?.paragraphs ?? []).map((paraObj, pIdx) => {
+                    if (!paraObj) return null;
+                    const paragraph = paraObj.text;
+                    const index = paraObj.originalIndex;
+                    if (!paragraph.trim()) return null;
+                    const hasChinese = paragraphMayShowInlineTranslateAction(paragraph);
+                    return (
+                      <p
+                        key={pIdx}
+                        data-index={index}
+                        className="reader-page-p transition-colors duration-200 hover:text-amber-600 focus:outline-none relative group"
+                        style={{
+                          ...nativeParagraphStyle,
+                          ...pageColumnCssVars,
+                          lineHeight: "var(--exact-lh)",
+                          textAlign: "justify",
+                          orphans: 1,
+                          widows: 1,
+                          breakInside: "auto",
+                          margin: 0,
+                          padding: 0,
+                          textIndent: "1.5em",
+                        }}
+                      >
+                        {paragraph.trim()}
+                        {hasChinese && (
+                          <span className="inline-flex items-center ml-2 select-none">
+                            <button
+                              disabled={isTranslatingParagraphId === index}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTranslateParagraph(index, paragraph);
+                              }}
+                              className="inline-flex items-center gap-1.5 h-8 px-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-amber-500 hover:text-white transition-all ml-1.5"
+                              title="Đoạn văn này có chứa Hán tự chưa dịch."
+                            >
+                              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                              {isTranslatingParagraphId === index
+                                ? "Đang dịch..."
+                                : "Dịch đoạn sót"}
+                            </button>
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ) : (
@@ -3565,19 +3686,16 @@ export default function ReaderView({
         )}
       </div>
       </div>
+      </div>
 
       {/* Bottom chrome — nền kéo sát đáy + safe-area gesture */}
       <div
-        className={`left-0 right-0 z-40 select-none backdrop-blur-md transition-transform duration-300 ${
-          barsOverlay
-            ? `absolute bottom-0 ${readerTheme.chromeBarBg} ${
-                !showBarsOnMobile
-                  ? "translate-y-full pointer-events-none"
-                  : "translate-y-0"
-              }`
-            : isMobile && !showBarsOnMobile
-              ? "hidden h-0 overflow-hidden p-0"
-              : `shrink-0 ${readerTheme.chromeBarBg}`
+        className={`absolute bottom-0 left-0 right-0 z-50 select-none backdrop-blur-md transition-all duration-300 ${
+          readerTheme.chromeBarBg
+        } ${
+          isMobile && !showBarsOnMobile
+            ? "translate-y-full opacity-0 pointer-events-none"
+            : "translate-y-0 opacity-100"
         }`}
         style={
           barsOverlay

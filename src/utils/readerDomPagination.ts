@@ -6,11 +6,10 @@ import type { TranslationSettings } from "../types";
 import { snapSplitIndexToWordBoundary } from "./readerPagination";
 import type { PageContent, PageParagraph } from "./readerPagination";
 import {
-  getReaderAlignmentClass,
-  getReaderFontClass,
+  READER_NATIVE_TEXT_INDENT,
   getReaderLineHeightPx,
-  READER_TEXT_INDENT_EM,
-} from "./readerTypography";
+} from "./readerPageLayout";
+import { getReaderFontClass } from "./readerTypography";
 
 /** Dự phòng đáy: không để dòng cụt khi render thật lệch vài px. */
 export const READER_DOM_BOTTOM_LINE_BUFFER = 1.15;
@@ -37,16 +36,19 @@ function ensureMeasureHost(root: HTMLElement): HTMLElement {
 function createMeasureParagraph(
   text: string,
   settings: TranslationSettings,
-  marginBottomPx: number
+  exactLineHeightPx: number
 ): HTMLParagraphElement {
   const p = document.createElement("p");
-  p.className = "leading-relaxed";
+  p.className = "reader-page-p";
   p.style.fontSize = `${settings.readerFontSize || 16}px`;
-  p.style.lineHeight = String(settings.readerLineHeight || 1.6);
-  p.style.marginBottom = `${marginBottomPx}px`;
-  p.style.textIndent = `${READER_TEXT_INDENT_EM}em`;
-  p.style.whiteSpace = "pre-wrap";
+  p.style.lineHeight = `${exactLineHeightPx}px`;
+  p.style.marginTop = "0";
+  p.style.marginBottom = "0";
+  p.style.textIndent = READER_NATIVE_TEXT_INDENT;
+  p.style.textAlign = "justify";
   p.style.wordBreak = "break-word";
+  p.style.hyphens = "auto";
+  p.style.whiteSpace = "pre-wrap";
   p.textContent = text;
   return p;
 }
@@ -63,15 +65,18 @@ function renderPageIntoHost(
   host.style.height = `${maxHeightPx}px`;
   host.style.maxHeight = `${maxHeightPx}px`;
   host.style.overflow = "hidden";
+  const exactLineHeightPx = getReaderLineHeightPx(settings);
   host.style.fontSize = `${settings.readerFontSize || 16}px`;
-  host.style.lineHeight = String(settings.readerLineHeight || 1.6);
-  host.className = `${getReaderFontClass(settings.readerFont)} ${getReaderAlignmentClass(settings.readerAlignment)}`;
+  host.style.lineHeight = `${exactLineHeightPx}px`;
+  host.style.columnFill = "auto";
+  host.style.columnGap = "0";
+  host.style.textAlign = "justify";
+  host.style.wordBreak = "break-word";
+  host.className = `${getReaderFontClass(settings.readerFont)} reader-page-column`;
 
   for (let i = 0; i < paragraphs.length; i++) {
     const para = paragraphs[i];
-    const isLast = i === paragraphs.length - 1;
-    const marginBottom = isLast ? 0 : settings.readerParagraphSpacing ?? 18;
-    host.appendChild(createMeasureParagraph(para.text, settings, marginBottom));
+    host.appendChild(createMeasureParagraph(para.text, settings, exactLineHeightPx));
   }
 }
 

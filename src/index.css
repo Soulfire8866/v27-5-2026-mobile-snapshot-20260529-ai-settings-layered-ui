@@ -121,6 +121,47 @@
   font-family: 'Literata', Georgia, 'Times New Roman', serif;
 }
 
+/* Phòng Đọc — cột trang native (Android WebView): !important chống engine can thiệp */
+.reader-page-quantized-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: var(--reader-target-h);
+  box-sizing: border-box;
+}
+
+.reader-page-column {
+  display: block !important;
+  width: 100%;
+  height: var(--max-h) !important;
+  line-height: var(--exact-lh) !important;
+  column-width: 100vw;
+  column-gap: 0;
+  column-fill: auto !important;
+  box-sizing: content-box !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.reader-page-p {
+  line-height: var(--exact-lh) !important;
+  text-align: justify !important;
+  orphans: 1 !important;
+  widows: 1 !important;
+  break-inside: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-indent: 1.5em;
+  word-break: break-word !important;
+  hyphens: auto !important;
+  -webkit-hyphens: auto !important;
+}
+
 /* Acrylic-mica background simulation */
 .acrylic-card {
   backdrop-filter: blur(20px);

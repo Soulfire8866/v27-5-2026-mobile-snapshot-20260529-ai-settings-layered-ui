@@ -46,6 +46,12 @@ import {
   READER_TOOLBAR_HEIGHT_PX,
 } from "../src/utils/readerChromeLayout.ts";
 import {
+  computeReaderQuantizedMetrics,
+  getReaderLineHeightPx,
+  paragraphMayShowInlineTranslateAction,
+  reduceQuantizedHeightByLines,
+} from "../src/utils/readerPageLayout.ts";
+import {
   mergeTranslationBackup,
   novelToTranslationBackupPayload,
   previewTranslationBackupMerge,
@@ -843,6 +849,28 @@ ok("add_only merge: thêm chương mới", mergedAddOnly.novels[0].chapters.some
 ok("add_only merge: không xóa page_trans", mergedAddOnly.clearedPageCacheChapterIds.length === 0);
 
 ok("Fluent legacy id", normalizeReaderTheme("fluent") === "light");
+
+const readerQuantSettings = {
+  readerFontSize: 20,
+  readerLineHeight: 1.6,
+  readerFillPercent: 90,
+  theme: "light",
+  readerFont: "serif",
+};
+const linePx = getReaderLineHeightPx(readerQuantSettings);
+const metrics = computeReaderQuantizedMetrics(800, readerQuantSettings);
+ok(
+  "quantize: chiều cao chẵn lineHeight",
+  metrics.quantizedHeight > 0 && metrics.quantizedHeight % linePx === 0
+);
+ok(
+  "quantize safety: trừ 1 dòng vẫn chẵn lineHeight",
+  reduceQuantizedHeightByLines(linePx * 10, readerQuantSettings, 1) === linePx * 9
+);
+ok(
+  "quantize detect: Hán >=3 hiện nút dịch sót",
+  paragraphMayShowInlineTranslateAction("Đoạn còn 漢字測 chưa dịch")
+);
 
 console.log("\n=== Tổng kết ===\n");
 console.log(`  Passed: ${passed}`);
