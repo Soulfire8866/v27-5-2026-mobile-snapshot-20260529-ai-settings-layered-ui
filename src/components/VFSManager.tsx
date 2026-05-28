@@ -33,6 +33,12 @@ import {
   isFullVfsZipPath,
   isTranslationBackupZipPath,
 } from "../utils/translationBackup";
+import { deleteNativeExportedFile, saveBlobWithNativeFallback } from "../utils/nativeFileSave";
+import {
+  ExportedFileEntry,
+  listExportedFiles,
+  removeExportedFileById,
+} from "../utils/exportedFilesRegistry";
 import {
   uiPanel,
   uiCard,
@@ -86,6 +92,7 @@ export default function VFSManager({
   onAlert,
   onImportTranslationBackup,
 }: VFSManagerProps) {
+  const [viewMode, setViewMode] = useState<"backup" | "fileEditor">("backup");
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string>("");
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -94,10 +101,12 @@ export default function VFSManager({
   const [isImporting, setIsImporting] = useState(false);
   const [isExportingTranslation, setIsExportingTranslation] = useState(false);
   const [isImportingTranslation, setIsImportingTranslation] = useState(false);
+  const [isDeletingExportedFile, setIsDeletingExportedFile] = useState<string | null>(null);
   
   // Stored page translations fetched directly from IndexedDB
   const [pageTranslations, setPageTranslations] = useState<Record<string, string[]>>({});
   const [backupFiles, setBackupFiles] = useState<Record<string, any>>({});
+  const [exportedFiles, setExportedFiles] = useState<ExportedFileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [newBackupAlert, setNewBackupAlert] = useState<{ fileName: string; backupKey: string } | null>(null);
 
@@ -124,6 +133,7 @@ export default function VFSManager({
 
       setPageTranslations(pageTransMap);
       setBackupFiles(backupMap);
+      setExportedFiles(await listExportedFiles());
     } catch (err) {
       console.error(err);
     } finally {
@@ -344,6 +354,28 @@ export default function VFSManager({
 
   const vfsTree = buildVFSTree();
   const backupCount = Object.keys(backupFiles).length;
+  const isFileEditorMode = viewMode === "fileEditor";
+
+  const formatBytes = (bytes: number): string => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ["KB", "MB", "GB"];
+    let value = bytes / 1024;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+  };
+
+  const formatSavedAt = (iso: string): string => {
+    const ts = Date.parse(iso);
+    if (Number.isNaN(ts)) return iso;
+    return new Date(ts).toLocaleString("vi-VN", {
+      hour12: false,
+    });
+  };
 
   const getFileTypeHint = (node: VFSNode | null): string => {
     if (!node || node.type !== "file") {
@@ -526,6 +558,27 @@ export default function VFSManager({
 
   // Helper to save file via modern File System Access API if supported (allows user folder selection on PC)
   const handleDownloadWithPicker = async (fileName: string, content: string): Promise<boolean> => {
+    const nativeResult = await saveBlobWithNativeFallback(
+      new Blob([content], { type: "text/plain;charset=utf-8" }),
+      fileName,
+      "text/plain"
+    );
+    if (nativeResult.saved || nativeResult.cancelled) {
+      if (nativeResult.saved) {
+        try {
+          setExportedFiles(await listExportedFiles());
+        } catch {
+          // ignore registry refresh failure
+        }
+        onAlert(
+          "Lưu thành công",
+          `Đã lưu tệp "${fileName}".\n${
+            nativeResult.uri ? `URI: ${nativeResult.uri}\n` : ""
+          }Dung lượng ghi: ${nativeResult.bytesWritten ?? content.length} bytes`
+        );
+      }
+      return true;
+    }
     if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
       try {
         const handle = await (window as any).showSaveFilePicker({
@@ -553,6 +606,27 @@ export default function VFSManager({
   };
 
   const handleDownloadBlobWithPicker = async (blob: Blob, suggestedName: string): Promise<boolean> => {
+    const nativeResult = await saveBlobWithNativeFallback(
+      blob,
+      suggestedName,
+      "application/zip"
+    );
+    if (nativeResult.saved || nativeResult.cancelled) {
+      if (nativeResult.saved) {
+        try {
+          setExportedFiles(await listExportedFiles());
+        } catch {
+          // ignore registry refresh failure
+        }
+        onAlert(
+          "Kết xuất thành công",
+          `Đã lưu bản sao lưu .ZIP.\n${
+            nativeResult.uri ? `URI: ${nativeResult.uri}\n` : ""
+          }Dung lượng ghi: ${nativeResult.bytesWritten ?? blob.size} bytes`
+        );
+      }
+      return true;
+    }
     if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
       try {
         const handle = await (window as any).showSaveFilePicker({
@@ -583,15 +657,7 @@ export default function VFSManager({
   const handleDownloadFile = async (fileName: string, content: string) => {
     const success = await handleDownloadWithPicker(fileName, content);
     if (success) return;
-
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
-    onAlert("Tải xuống hoàn tất", `Đã tải tệp "${fileName}" về thiết bị (lưu vào thư mục Downloads mặc định).`);
+    onAlert("Không lưu được", `Không thể lưu tệp "${fileName}" trên thiết bị.`);
   };
 
   // Snapshot toàn bộ dữ liệu app (trừ các bản backup cũ) vào luu_tru/backups/
@@ -623,6 +689,7 @@ export default function VFSManager({
 
   // Open backup folder and highlight the newly selected file
   const handleOpenBackupFolder = (fileName: string) => {
+    setViewMode("fileEditor");
     setExpandedNodes((prev) => ({
       ...prev,
       "luu_tru": true,
@@ -647,6 +714,43 @@ export default function VFSManager({
       await deleteValue(backupKey);
       loadIndexedDBExtra();
       onAlert("Bản sao lưu", "Đã xóa bản sao lưu thành công.");
+    }
+  };
+
+  const handleDeleteExportedFile = async (entry: ExportedFileEntry) => {
+    if (!confirm(`Xóa file đã xuất "${entry.fileName}" khỏi máy?\n\nThao tác này sẽ xóa file vật lý theo URI đã lưu.`)) {
+      return;
+    }
+    setIsDeletingExportedFile(entry.id);
+    try {
+      const deleted = await deleteNativeExportedFile(entry.uri);
+      if (!deleted) {
+        onAlert(
+          "Không xóa được file",
+          "Không thể xóa file vật lý. Có thể URI đã hết quyền hoặc file đã bị di chuyển/xóa thủ công."
+        );
+        return;
+      }
+      const updated = await removeExportedFileById(entry.id);
+      setExportedFiles(updated);
+      onAlert("Đã xóa file", `Đã xóa "${entry.fileName}" khỏi thiết bị.`);
+    } catch (err: unknown) {
+      onAlert("Lỗi xóa file", err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDeletingExportedFile(null);
+    }
+  };
+
+  const handleRemoveExportedFileFromList = async (entry: ExportedFileEntry) => {
+    if (!confirm(`Gỡ "${entry.fileName}" khỏi danh sách theo dõi?\n\nThao tác này KHÔNG xóa file vật lý trên máy.`)) {
+      return;
+    }
+    try {
+      const updated = await removeExportedFileById(entry.id);
+      setExportedFiles(updated);
+      onAlert("Đã gỡ khỏi danh sách", `"${entry.fileName}" đã được gỡ khỏi danh sách theo dõi.`);
+    } catch (err: unknown) {
+      onAlert("Lỗi thao tác", err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -695,7 +799,9 @@ export default function VFSManager({
     setIsExportingTranslation(true);
     try {
       const { blob, manifest, fileName } = await buildTranslationBackupZip(novels);
-      const picked = await downloadBlobWithFallback(blob, fileName);
+      const picked = await downloadBlobWithFallback(blob, fileName, (debugMessage) => {
+        onAlert("Kết quả lưu file", debugMessage);
+      });
       if (!picked) return;
       onAlert(
         "Sao lưu data dịch",
@@ -723,30 +829,34 @@ export default function VFSManager({
     }
   };
 
-  // Export entire directory tree as structured nested folders zip
+  // Export lightweight system backup ZIP (without heavy books/backups payload)
   const handleExportFullZIP = async () => {
     setIsExporting(true);
     try {
       const zip = new JSZip();
-      
-      // We will pack all the siblings inside 'luu_tru' root node
-      if (vfsTree.children) {
-        vfsTree.children.forEach((child) => {
-          addNodeToZip(zip, child);
-        });
-      }
+      zip.file("settings/cau_hinh_he_thong.json", JSON.stringify(settings, null, 2));
+      zip.file("dictionaries/tu_dien_rieng.json", JSON.stringify(dictItems, null, 2));
+      zip.file("dictionaries/tu_dien_nhan_xung.json", JSON.stringify(pronounMappings, null, 2));
+
+      const novelsMeta = novels.map((n) => ({
+        id: n.id,
+        title: n.title,
+        author: n.author,
+        chapterCount: n.chapters.length,
+        translatedCount: n.chapters.filter((c) => !!c.translatedText?.trim()).length,
+        lastReadChapterId: n.lastReadChapterId,
+        lastReadMode: n.lastReadMode,
+        lastReadPageIndex: n.lastReadPageIndex,
+        updatedAt: new Date().toISOString(),
+      }));
+      zip.file("settings/novels_meta_light.json", JSON.stringify(novelsMeta, null, 2));
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      const suggestedName = `cay_thu_muc_luu_tru_${new Date().toISOString().slice(0, 10)}.zip`;
+      const suggestedName = `cau_hinh_he_thong_nhe_${new Date().toISOString().slice(0, 10)}.zip`;
 
       const success = await handleDownloadBlobWithPicker(zipBlob, suggestedName);
       if (!success) {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(zipBlob);
-        link.download = suggestedName;
-        link.click();
-        URL.revokeObjectURL(link.href);
-        onAlert("Kết xuất thành công", "Đã tải xuống trọn bộ Cây thư mục hệ thống (.ZIP) vào thư mục Downloads mặc định!");
+        onAlert("Không lưu được", "Không thể lưu ZIP cấu hình nhẹ.");
       }
     } catch (err: any) {
       alert("Lỗi nén thư mục: " + err.message);
@@ -1160,20 +1270,102 @@ export default function VFSManager({
     );
   };
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[500px] gap-4">
-      {/* Tiêu đề */}
-      <div className={`${uiSection} shrink-0`}>
-        <div className="flex items-start gap-3">
-          <div className={uiIconHeader}>
-            <FolderTree className="w-5 h-5 text-app-accent" />
-          </div>
-          <div className="min-w-0">
-            <h2 className={uiTitle}>Sao lưu và khôi phục</h2>
-            <p className={`${uiCaption} mt-1`}>
-              Bốn cách làm việc: <strong>snapshot trong máy</strong>, <strong>data dịch (khuyến nghị)</strong>, <strong>ZIP đầy đủ</strong>, <strong>nạp ZIP</strong>. Data dịch không gồm cấu hình — an toàn sau cài lại app.
+  const renderExportedFilesList = () => {
+    return (
+      <div className={`${uiCardInset} p-4 flex flex-col gap-3 shrink-0`}>
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-app-text text-app-surface text-xs font-semibold flex items-center justify-center">
+            4
+          </span>
+          <h3 className={`${uiTitle} text-xs`}>Quản lý file đã xuất</h3>
+        </div>
+        <p className={`${uiCaption} text-[10.5px]`}>
+          Danh sách này theo dõi các file đã lưu qua bộ lưu native (SAF). Bạn có thể xóa trực tiếp file vật lý từ đây.
+        </p>
+        {exportedFiles.length === 0 ? (
+          <div className="border border-dashed border-app-border rounded-xl p-3">
+            <p className={`${uiCaption} text-[10px]`}>
+              Chưa có file nào được ghi nhận. Hãy export một file mới để bắt đầu quản lý.
             </p>
           </div>
+        ) : (
+          <div className="max-h-[260px] overflow-y-auto custom-scrollbar divide-y divide-app-border rounded-xl border border-app-border">
+            {exportedFiles.map((entry) => {
+              const deleting = isDeletingExportedFile === entry.id;
+              return (
+                <div key={entry.id} className="px-3 py-2.5 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[11px] font-bold text-app-text truncate">{entry.fileName}</p>
+                    <p className={`${uiCaption} text-[10px] mt-0.5 truncate`}>
+                      {formatBytes(entry.bytesWritten)} · {formatSavedAt(entry.savedAt)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveExportedFileFromList(entry)}
+                    disabled={deleting}
+                    className={`${uiBtnGhost} h-8 px-2.5 text-[10px] font-bold`}
+                    title="Gỡ khỏi danh sách"
+                  >
+                    Gỡ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteExportedFile(entry)}
+                    disabled={deleting}
+                    className={`${uiBtnGhost} h-8 px-2.5 text-[10px] font-bold text-red-500 border-red-500/20 hover:bg-red-500/10`}
+                    title="Xóa file vật lý"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {deleting ? "Đang xóa…" : "Xóa"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className={`flex flex-col gap-4 ${isFileEditorMode ? "h-[calc(100vh-140px)] min-h-[500px]" : ""}`}>
+      <div className={`${uiSection} shrink-0`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={uiIconHeader}>
+              <FolderTree className="w-5 h-5 text-app-accent" />
+            </div>
+            <div className="min-w-0">
+              <h2 className={uiTitle}>Sao lưu và khôi phục</h2>
+              <p className={`${uiCaption} mt-1`}>
+                Bốn cách làm việc: <strong>snapshot trong máy</strong>, <strong>data dịch (khuyến nghị)</strong>, <strong>ZIP đầy đủ</strong>, <strong>nạp ZIP</strong>. Data dịch không gồm cấu hình — an toàn sau cài lại app.
+              </p>
+            </div>
+          </div>
+          {isFileEditorMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("backup");
+                setActiveFilePath(null);
+                setEditorError(null);
+              }}
+              className={`${uiBtnGhost} h-9 px-3 text-[11px] font-bold shrink-0`}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Quay lại
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setViewMode("fileEditor")}
+              className={`${uiBtnSecondary} h-9 px-3 text-[11px] font-bold shrink-0`}
+            >
+              <FolderTree className="w-4 h-4" />
+              Xem & Sửa Từng File
+            </button>
+          )}
         </div>
       </div>
 
@@ -1192,334 +1384,327 @@ export default function VFSManager({
         </div>
       )}
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden">
-        {/* Cột trái: cây thư mục */}
-        <div className={`lg:col-span-4 ${uiPanel} min-h-[280px] lg:min-h-0 order-2 lg:order-1`}>
-          <div className="shrink-0 mb-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className={uiLabel}>
-                Xem & sửa từng file
-              </span>
-              <button
-                type="button"
-                onClick={loadIndexedDBExtra}
-                className={`text-[10px] font-bold text-app-accent hover:opacity-90 flex items-center gap-1 cursor-pointer`}
-              >
-                <RefreshCw className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`} />
-                Làm mới
-              </button>
-            </div>
-            <p className={`${uiCaption} text-[10px] mt-1`}>
-              Dành cho người quen file: bấm tên file → sửa bên phải → «Lưu vào app». Icon ↓ = tải một file.
-            </p>
-          </div>
-
-          <details className={`shrink-0 mb-2 ${uiCaption} text-[10px]`}>
-            <summary className="cursor-pointer font-bold text-app-text select-none">
-              Ý nghĩa từng thư mục
-            </summary>
-            <ul className="mt-1.5 space-y-0.5 pl-3 list-disc leading-relaxed">
-              <li><code className="text-[9px]">settings/</code> — Cấu hình app</li>
-              <li><code className="text-[9px]">dictionaries/</code> — Từ điển & xưng hô</li>
-              <li><code className="text-[9px]">books/</code> — Truyện, chương Hán/Việt, trang đọc</li>
-              <li><code className="text-[9px]">backups/</code> — Snapshot đã tạo</li>
-            </ul>
-          </details>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-0.5 min-h-0">
-            {renderTreeNodes(vfsTree)}
-          </div>
-        </div>
-
-        {/* Cột phải: bảng điều khiển hoặc trình sửa file */}
-        <div className={`lg:col-span-8 ${uiPanel} md:p-5 order-1 lg:order-2`}>
-          {activeFilePath ? (
-            <div className="flex flex-col h-full min-h-0">
-              <div className="flex items-center justify-between gap-3 border-b border-app-border pb-3 mb-3 shrink-0">
+      {isFileEditorMode ? (
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden">
+          <div className={`lg:col-span-4 ${uiPanel} min-h-[280px] lg:min-h-0 order-2 lg:order-1`}>
+            <div className="shrink-0 mb-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className={uiLabel}>Xem & sửa từng file</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveFilePath(null);
-                    setEditorError(null);
-                  }}
-                  className={`${uiBtnGhost} h-9 px-2.5 text-[11px] font-bold shrink-0`}
+                  onClick={loadIndexedDBExtra}
+                  className="text-[10px] font-bold text-app-accent hover:opacity-90 flex items-center gap-1 cursor-pointer"
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  Quay lại
+                  <RefreshCw className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`} />
+                  Làm mới
                 </button>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleCopyContent}
-                    className={`${uiBtnGhost} p-2 min-h-0 min-w-0`}
-                    title="Sao chép"
-                  >
-                    <Copy className="w-4 h-4 text-app-text-muted" />
-                  </button>
+              </div>
+              <p className={`${uiCaption} text-[10px] mt-1`}>
+                Dành cho người quen file: bấm tên file → sửa bên phải → «Lưu vào app». Icon ↓ = tải một file.
+              </p>
+            </div>
+
+            <details className={`shrink-0 mb-2 ${uiCaption} text-[10px]`}>
+              <summary className="cursor-pointer font-bold text-app-text select-none">Ý nghĩa từng thư mục</summary>
+              <ul className="mt-1.5 space-y-0.5 pl-3 list-disc leading-relaxed">
+                <li><code className="text-[9px]">settings/</code> — Cấu hình app</li>
+                <li><code className="text-[9px]">dictionaries/</code> — Từ điển & xưng hô</li>
+                <li><code className="text-[9px]">books/</code> — Truyện, chương Hán/Việt, trang đọc</li>
+                <li><code className="text-[9px]">backups/</code> — Snapshot đã tạo</li>
+              </ul>
+            </details>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-0.5 min-h-0">
+              {renderTreeNodes(vfsTree)}
+            </div>
+          </div>
+
+          <div className={`lg:col-span-8 ${uiPanel} md:p-5 order-1 lg:order-2`}>
+            {activeFilePath ? (
+              <div className="flex flex-col h-full min-h-0">
+                <div className="flex items-center justify-between gap-3 border-b border-app-border pb-3 mb-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
-                      const name = activeFilePath.split("/").pop() || "source.txt";
-                      handleDownloadFile(name, activeFileContent);
+                      setActiveFilePath(null);
+                      setEditorError(null);
                     }}
-                    className={`${uiBtnGhost} p-2 min-h-0 min-w-0`}
-                    title="Tải file này"
+                    className={`${uiBtnGhost} h-9 px-2.5 text-[11px] font-bold shrink-0`}
                   >
-                    <Download className="w-4 h-4 text-app-text-muted" />
+                    <ArrowLeft className="w-4 h-4" />
+                    Chọn file khác
                   </button>
-                  {activeNode?.dataType !== "backup" && (
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={handleSaveChanges}
-                      className={`${uiBtnPrimary} h-9 px-3 text-xs font-bold`}
+                      onClick={handleCopyContent}
+                      className={`${uiBtnGhost} p-2 min-h-0 min-w-0`}
+                      title="Sao chép"
                     >
-                      <Save className="w-3.5 h-3.5" />
-                      Lưu vào app
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className={`${uiInfoBanner} mb-3 p-2.5 shrink-0 border-sky-500/20 bg-sky-500/8`}>
-                <p className="text-[10px] font-mono text-app-accent truncate mb-1 w-full">
-                  {activeFilePath}
-                </p>
-                <p className={`${uiCaption} text-[10.5px] flex gap-1.5 text-app-text`}>
-                  <HelpCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-500" />
-                  {getFileTypeHint(activeNode)}
-                </p>
-              </div>
-
-              {activeFilePath.includes("/backups/") && (
-                <div className={`${uiInfoBanner} mb-3 shrink-0 space-y-2 flex-col items-stretch`}>
-                  <p className={`${uiCaption} text-[10.5px] flex gap-2 text-app-text`}>
-                    <AlertTriangle className="w-4 h-4 text-app-accent shrink-0" />
-                    File snapshot — không sửa tay. Khôi phục cũng có trong <strong>mục 1</strong> (danh sách bản đã lưu).
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const node = findNodeByPath(vfsTree, activeFilePath);
-                        if (node?.meta?.backupKey) {
-                          handleDeleteBackup(node.meta.backupKey);
-                          setActiveFilePath(null);
-                        }
-                      }}
-                      className={`${uiBtnGhost} h-8 px-3 text-red-600 font-bold text-[10px] border-red-500/25`}
-                    >
-                      Xóa bản
+                      <Copy className="w-4 h-4 text-app-text-muted" />
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        const node = findNodeByPath(vfsTree, activeFilePath);
-                        if (node?.meta?.backupKey) {
-                          try {
-                            const parsed = JSON.parse(activeFileContent);
-                            handleRestoreBackup(node.meta.backupKey, parsed);
-                          } catch (err: unknown) {
-                            alert("File backup lỗi: " + (err instanceof Error ? err.message : String(err)));
-                          }
-                        }
+                        const name = activeFilePath.split("/").pop() || "source.txt";
+                        handleDownloadFile(name, activeFileContent);
                       }}
-                      className={`${uiBtnPrimary} h-8 px-3 text-[10px] font-bold`}
+                      className={`${uiBtnGhost} p-2 min-h-0 min-w-0`}
+                      title="Tải file này"
                     >
-                      Khôi phục bản này
+                      <Download className="w-4 h-4 text-app-text-muted" />
                     </button>
+                    {activeNode?.dataType !== "backup" && (
+                      <button
+                        type="button"
+                        onClick={handleSaveChanges}
+                        className={`${uiBtnPrimary} h-9 px-3 text-xs font-bold`}
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        Lưu vào app
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {editorError && (
-                <div className="mb-3.5 p-2.5 bg-red-500/10 border border-red-600/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold leading-normal shrink-0">
-                  {editorError}
+                <div className={`${uiInfoBanner} mb-3 p-2.5 shrink-0 border-sky-500/20 bg-sky-500/8`}>
+                  <p className="text-[10px] font-mono text-app-accent truncate mb-1 w-full">{activeFilePath}</p>
+                  <p className={`${uiCaption} text-[10.5px] flex gap-1.5 text-app-text`}>
+                    <HelpCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-500" />
+                    {getFileTypeHint(activeNode)}
+                  </p>
                 </div>
-              )}
 
-              {/* Text editor box container */}
-              <div className="flex-1 relative min-h-0 bg-app-text/95 rounded-lg border border-app-border p-4.5 overflow-hidden flex flex-col">
-                <textarea
-                  value={activeFileContent}
-                  onChange={(e) => {
-                    setActiveFileContent(e.target.value);
-                    setEditorError(null);
-                  }}
-                  className="w-full flex-1 bg-transparent border-none text-app-bg font-mono text-[11px] leading-relaxed resize-none focus:outline-none focus:ring-0 custom-scrollbar overflow-y-auto"
-                  placeholder="Ghi nội dung hoặc mã cấu trúc văn bản tại đây..."
-                  spellCheck={false}
-                />
-              </div>
+                {activeFilePath.includes("/backups/") && (
+                  <div className={`${uiInfoBanner} mb-3 shrink-0 space-y-2 flex-col items-stretch`}>
+                    <p className={`${uiCaption} text-[10.5px] flex gap-2 text-app-text`}>
+                      <AlertTriangle className="w-4 h-4 text-app-accent shrink-0" />
+                      File snapshot — không sửa tay. Khôi phục cũng có trong <strong>mục 1</strong> (danh sách bản đã lưu).
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const node = findNodeByPath(vfsTree, activeFilePath);
+                          if (node?.meta?.backupKey) {
+                            handleDeleteBackup(node.meta.backupKey);
+                            setActiveFilePath(null);
+                          }
+                        }}
+                        className={`${uiBtnGhost} h-8 px-3 text-red-600 font-bold text-[10px] border-red-500/25`}
+                      >
+                        Xóa bản
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const node = findNodeByPath(vfsTree, activeFilePath);
+                          if (node?.meta?.backupKey) {
+                            try {
+                              const parsed = JSON.parse(activeFileContent);
+                              handleRestoreBackup(node.meta.backupKey, parsed);
+                            } catch (err: unknown) {
+                              alert("File backup lỗi: " + (err instanceof Error ? err.message : String(err)));
+                            }
+                          }
+                        }}
+                        className={`${uiBtnPrimary} h-8 px-3 text-[10px] font-bold`}
+                      >
+                        Khôi phục bản này
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-              <div className="mt-2 text-right shrink-0">
-                <span className={`${uiCaption} text-[9px] font-bold font-serif lowercase`}>
-                  quy mô tệp: {activeFileContent.length} ký tự
-                </span>
-              </div>
+                {editorError && (
+                  <div className="mb-3.5 p-2.5 bg-red-500/10 border border-red-600/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold leading-normal shrink-0">
+                    {editorError}
+                  </div>
+                )}
 
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pr-0.5 gap-4">
-              <p className={`${uiLabel} shrink-0`}>
-                Bạn muốn làm gì?
-              </p>
+                <div className="flex-1 relative min-h-0 bg-app-text/95 rounded-lg border border-app-border p-4.5 overflow-hidden flex flex-col">
+                  <textarea
+                    value={activeFileContent}
+                    onChange={(e) => {
+                      setActiveFileContent(e.target.value);
+                      setEditorError(null);
+                    }}
+                    className="w-full flex-1 bg-transparent border-none text-app-bg font-mono text-[11px] leading-relaxed resize-none focus:outline-none focus:ring-0 custom-scrollbar overflow-y-auto"
+                    placeholder="Ghi nội dung hoặc mã cấu trúc văn bản tại đây..."
+                    spellCheck={false}
+                  />
+                </div>
 
-              {/* Mục 1: tạo snapshot + khôi phục ngay trong cùng khối */}
-              <div className={`${uiCard} border-2 border-app-accent/30 bg-app-accent/5 p-4 flex flex-col gap-3 shrink-0`}>
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center shrink-0">
-                    1
+                <div className="mt-2 text-right shrink-0">
+                  <span className={`${uiCaption} text-[9px] font-bold font-serif lowercase`}>
+                    quy mô tệp: {activeFileContent.length} ký tự
                   </span>
-                  <h3 className={`${uiTitle} text-xs`}>Lưu & khôi phục trong máy</h3>
                 </div>
-                <p className={`${uiCaption} text-[10.5px]`}>
-                  <strong>Mục đích:</strong> Điểm quay lại trên cùng thiết bị — trước cập nhật app hoặc dịch hàng loạt.
-                </p>
-                <details className={uiCaption}>
-                  <summary className="cursor-pointer font-bold text-app-accent">Gồm những gì?</summary>
-                  <ul className="mt-1 pl-3 list-disc space-y-0.5 leading-relaxed">
-                    <li>Truyện & bản dịch chương</li>
-                    <li>Dịch từng trang (Phòng Đọc)</li>
-                    <li>Cấu hình, API key, từ điển</li>
-                  </ul>
-                </details>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-center">
+                <div className="max-w-md">
+                  <p className={uiTitle}>Xem & Sửa Từng File</p>
+                  <p className={`${uiCaption} mt-2 text-[11px]`}>
+                    Chọn một file ở cột trái để xem/sửa dữ liệu nâng cao. Khi xong có thể bấm «Quay lại» để trở về màn Sao lưu & Khôi phục.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className={`${uiPanel} md:p-5`}>
+          <div className="flex flex-col gap-4">
+            <p className={uiLabel}>Bạn muốn làm gì?</p>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("fileEditor")}
+              className={`${uiBtnSecondary} w-fit h-9 px-3 text-[11px] font-bold`}
+            >
+              <FolderTree className="w-4 h-4" />
+              Mở Xem & Sửa Từng File
+            </button>
+
+            <div className={`${uiCard} border-2 border-app-accent/30 bg-app-accent/5 p-4 flex flex-col gap-3`}>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center shrink-0">1</span>
+                <h3 className={`${uiTitle} text-xs`}>Lưu & khôi phục trong máy</h3>
+              </div>
+              <p className={`${uiCaption} text-[10.5px]`}>
+                <strong>Mục đích:</strong> Điểm quay lại trên cùng thiết bị — trước cập nhật app hoặc dịch hàng loạt.
+              </p>
+              <details className={uiCaption}>
+                <summary className="cursor-pointer font-bold text-app-accent">Gồm những gì?</summary>
+                <ul className="mt-1 pl-3 list-disc space-y-0.5 leading-relaxed">
+                  <li>Truyện & bản dịch chương</li>
+                  <li>Dịch từng trang (Phòng Đọc)</li>
+                  <li>Cấu hình, API key, từ điển</li>
+                </ul>
+              </details>
+              <button
+                type="button"
+                onClick={handleCreateVFSBackupSpec}
+                disabled={isLoading}
+                className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                Tạo bản trong máy
+              </button>
+              <div className="border-t border-app-accent/20 pt-3 mt-1">
+                {renderBackupHistoryList({ embedded: true })}
+              </div>
+            </div>
+
+            <div className={`${uiCard} border-2 border-teal-600/35 bg-teal-600/5 p-4 flex flex-col gap-3`}>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">★</span>
+                <h3 className={`${uiTitle} text-xs`}>Sao lưu / Nạp data dịch (an toàn)</h3>
+              </div>
+              <p className={`${uiCaption} text-[10.5px] leading-relaxed`}>
+                <strong>Khuyến nghị sau cài lại app:</strong> chỉ truyện + chương đã dịch Lab — <strong>không</strong> gồm cấu hình, API, từ điển, cache phân trang.
+              </p>
+              <p className={uiCaption}>
+                Hiện có <span className="font-bold text-app-text">{translatedChapterTotal}</span> chương đã dịch có thể sao lưu.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={handleCreateVFSBackupSpec}
-                  disabled={isLoading}
-                  className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
+                  onClick={handleExportTranslationBackup}
+                  disabled={isExportingTranslation || translatedChapterTotal === 0}
+                  className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
                 >
-                  <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-                  Tạo bản trong máy
+                  <Download className="w-4 h-4" />
+                  {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch (.zip)"}
                 </button>
-                <div className="border-t border-app-accent/20 pt-3 mt-1">
-                  {renderBackupHistoryList({ embedded: true })}
-                </div>
-              </div>
-
-              <div className={`${uiCard} border-2 border-teal-600/35 bg-teal-600/5 p-4 flex flex-col gap-3 shrink-0`}>
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
-                    ★
-                  </span>
-                  <h3 className={`${uiTitle} text-xs`}>Sao lưu / Nạp data dịch (an toàn)</h3>
-                </div>
-                <p className={`${uiCaption} text-[10.5px] leading-relaxed`}>
-                  <strong>Khuyến nghị sau cài lại app:</strong> chỉ truyện + chương đã dịch Lab —{" "}
-                  <strong>không</strong> gồm cấu hình, API, từ điển, cache phân trang.
-                </p>
-                <p className={uiCaption}>
-                  Hiện có{" "}
-                  <span className="font-bold text-app-text">{translatedChapterTotal}</span> chương đã dịch
-                  có thể sao lưu.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleExportTranslationBackup}
-                    disabled={isExportingTranslation || translatedChapterTotal === 0}
-                    className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold bg-teal-700 hover:bg-teal-600`}
-                  >
-                    <Download className="w-4 h-4" />
-                    {isExportingTranslation ? "Đang đóng gói…" : "Tải data dịch (.zip)"}
-                  </button>
-                  <label
-                    className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer justify-center ${
-                      isImportingTranslation ? "opacity-60 pointer-events-none" : ""
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    {isImportingTranslation ? "Đang nạp…" : "Nạp data dịch"}
-                    <input
-                      type="file"
-                      accept={
-                        typeof navigator !== "undefined" &&
-                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-                          navigator.userAgent
-                        )
-                          ? "*/*"
-                          : ".zip"
-                      }
-                      className="hidden"
-                      onChange={handleImportTranslationBackupFile}
-                      disabled={isImportingTranslation}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
-                {/* Card 2 — Export ZIP */}
-                <div className={`${uiCard} border-app-accent/35 bg-app-accent/5 p-4 flex flex-col gap-3`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center">
-                      2
-                    </span>
-                    <h3 className={`${uiTitle} text-xs`}>Tải file ZIP</h3>
-                  </div>
-                  <p className={`${uiCaption} text-[10.5px] flex-1`}>
-                    <strong>Mục đích:</strong> Copy sang PC, USB, máy khác — file .txt/.json dễ đọc.
-                  </p>
-                  <p className={uiCaption}>
-                    Xuất truyện, từ điển, cấu hình, cache trang (dạng thư mục trong ZIP).
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleExportFullZIP}
-                    disabled={isExporting}
-                    className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
-                  >
-                    <Download className="w-4 h-4" />
-                    {isExporting ? "Đang đóng gói…" : "Tải ZIP về máy"}
-                  </button>
-                </div>
-
-                {/* Card 3 — Import ZIP */}
-                <div className={`${uiCardInset} p-4 flex flex-col gap-3`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-app-text text-app-surface text-xs font-semibold flex items-center justify-center">
-                      3
-                    </span>
-                    <h3 className={`${uiTitle} text-xs`}>Nạp file ZIP</h3>
-                  </div>
-                  <p className={`${uiCaption} text-[10.5px] flex-1`}>
-                    <strong>Mục đích:</strong> Đưa dữ liệu từ ZIP (do app này xuất) vào app hiện tại.
-                  </p>
-                  <p className={`${uiCaption} text-app-accent flex gap-1`}>
-                    <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                    Gộp thêm truyện/từ — không xóa sạch như «Khôi phục».
-                  </p>
-                  <label className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer bg-app-text text-app-surface hover:opacity-90`}>
-                    <Upload className="w-4 h-4" />
-                    {isImporting ? "Đang nạp…" : "Chọn file ZIP"}
-                    <input
-                      type="file"
-                      accept={
-                        typeof navigator !== "undefined" &&
-                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-                          navigator.userAgent
-                        )
-                          ? "*/*"
-                          : ".zip"
-                      }
-                      className="hidden"
-                      onChange={handleImportFullZIP}
-                      disabled={isImporting}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className={`${uiCardInset} p-3 rounded-xl shrink-0`}>
-                <p className={`${uiCaption} text-[10.5px]`}>
-                  <strong className="text-app-text">So sánh nhanh:</strong> Quay app trên <em>cùng máy</em> → mục 1 («Tạo bản» + «Khôi phục bản này» trong khối accent).
-                  Mang sang máy khác → mục 2 rồi mục 3. Sửa từng file → cây thư mục bên trái.
-                </p>
+                <label
+                  className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer justify-center ${
+                    isImportingTranslation ? "opacity-60 pointer-events-none" : ""
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  {isImportingTranslation ? "Đang nạp…" : "Nạp data dịch"}
+                  <input
+                    type="file"
+                    accept={
+                      typeof navigator !== "undefined" &&
+                      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                        ? "*/*"
+                        : ".zip"
+                    }
+                    className="hidden"
+                    onChange={handleImportTranslationBackupFile}
+                    disabled={isImportingTranslation}
+                  />
+                </label>
               </div>
             </div>
-          )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className={`${uiCard} border-app-accent/35 bg-app-accent/5 p-4 flex flex-col gap-3`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center">2</span>
+                  <h3 className={`${uiTitle} text-xs`}>Tải ZIP cấu hình nhẹ</h3>
+                </div>
+                <p className={`${uiCaption} text-[10.5px] flex-1`}>
+                  <strong>Mục đích:</strong> Backup nhanh cấu hình hệ thống + từ điển để di chuyển giữa thiết bị.
+                </p>
+                <p className={uiCaption}>
+                  Bao gồm <strong>settings + từ điển + metadata truyện nhẹ</strong>. Không gồm dữ liệu chương/caches nặng.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleExportFullZIP}
+                  disabled={isExporting}
+                  className={`${uiBtnPrimary} w-full min-h-10 text-xs font-bold`}
+                >
+                  <Download className="w-4 h-4" />
+                  {isExporting ? "Đang đóng gói…" : "Tải ZIP cấu hình"}
+                </button>
+              </div>
+
+              <div className={`${uiCardInset} p-4 flex flex-col gap-3`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-app-text text-app-surface text-xs font-semibold flex items-center justify-center">3</span>
+                  <h3 className={`${uiTitle} text-xs`}>Nạp file ZIP</h3>
+                </div>
+                <p className={`${uiCaption} text-[10.5px] flex-1`}>
+                  <strong>Mục đích:</strong> Đưa dữ liệu từ ZIP (do app này xuất) vào app hiện tại.
+                </p>
+                <p className={`${uiCaption} text-app-accent flex gap-1`}>
+                  <Info className="w-3 h-3 shrink-0 mt-0.5" />
+                  Gộp thêm truyện/từ — không xóa sạch như «Khôi phục».
+                </p>
+                <label className={`${uiBtnSecondary} w-full min-h-10 text-xs font-bold cursor-pointer bg-app-text text-app-surface hover:opacity-90`}>
+                  <Upload className="w-4 h-4" />
+                  {isImporting ? "Đang nạp…" : "Chọn file ZIP"}
+                  <input
+                    type="file"
+                    accept={
+                      typeof navigator !== "undefined" &&
+                      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                        ? "*/*"
+                        : ".zip"
+                    }
+                    className="hidden"
+                    onChange={handleImportFullZIP}
+                    disabled={isImporting}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {renderExportedFilesList()}
+
+            <div className={`${uiCardInset} p-3 rounded-xl`}>
+              <p className={`${uiCaption} text-[10.5px]`}>
+                <strong className="text-app-text">So sánh nhanh:</strong> Quay app trên <em>cùng máy</em> → mục 1 («Tạo bản» + «Khôi phục bản này» trong khối accent). Mang sang máy khác → mục 2 rồi mục 3. Sửa từng file → bấm «Mở Xem & Sửa Từng File».
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

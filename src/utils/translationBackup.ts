@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { Chapter, Novel } from "../types";
+import { saveBlobWithNativeFallback } from "./nativeFileSave";
 
 /** Phiên bản schema backup data dịch (4A). Tăng khi đổi cấu trúc export/import. */
 export const TRANSLATION_BACKUP_SCHEMA_VERSION = 1;
@@ -451,36 +452,17 @@ export async function downloadBlobWithFallback(
   suggestedName: string,
   onSuccess?: (message: string) => void
 ): Promise<boolean> {
-  if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
-    try {
-      const handle = await (window as Window & { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-        suggestedName,
-        types: [
-          {
-            description: "Sao lưu data dịch (.zip)",
-            accept: { "application/zip": [".zip"] },
-          },
-        ],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      onSuccess?.("Đã lưu file ZIP vào thư mục bạn chọn.");
-      return true;
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return true;
-      console.warn("[translation-backup] showSaveFilePicker failed", err);
-    }
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = suggestedName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  onSuccess?.("Đã tải file ZIP (thư mục Downloads mặc định).");
+  const result = await saveBlobWithNativeFallback(
+    blob,
+    suggestedName,
+    "application/zip"
+  );
+  if (result.cancelled) return true;
+  if (!result.saved) return false;
+  onSuccess?.(
+    result.uri
+      ? `Đã lưu file ZIP.\nURI: ${result.uri}\nDung lượng ghi: ${result.bytesWritten ?? blob.size} bytes`
+      : `Đã tải file ZIP thành công.\nDung lượng: ${result.bytesWritten ?? blob.size} bytes`
+  );
   return true;
 }

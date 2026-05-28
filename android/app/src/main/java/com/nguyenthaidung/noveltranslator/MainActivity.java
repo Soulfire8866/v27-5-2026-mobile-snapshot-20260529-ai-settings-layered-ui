@@ -6,7 +6,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
         registerPlugin(SystemChromePlugin.class);
+        registerPlugin(NativeFileSavePlugin.class);
+        super.onCreate(savedInstanceState);
     }
 }

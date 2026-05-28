@@ -3,6 +3,7 @@
  * Handles formatted file generation for TXT, EPUB, DOCX, and PDF formats
  */
 import { Chapter } from "../types";
+import { saveBlobWithNativeFallback } from "./nativeFileSave";
 
 export function exportChaptersToTxt(title: string, chapters: Chapter[], fromIdx: number, toIdx: number) {
   const selectedChapters = chapters.slice(fromIdx, toIdx + 1);
@@ -132,13 +133,14 @@ export function triggerBrowserPrint(title: string, chapters: Chapter[], fromIdx:
   printWindow.document.close();
 }
 
+function detectMimeByName(filename: string): string {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".txt")) return "text/plain";
+  if (lower.endsWith(".doc")) return "application/msword";
+  if (lower.endsWith(".epub")) return "application/epub+zip";
+  return "application/octet-stream";
+}
+
 function downloadFile(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  void saveBlobWithNativeFallback(blob, filename, detectMimeByName(filename));
 }

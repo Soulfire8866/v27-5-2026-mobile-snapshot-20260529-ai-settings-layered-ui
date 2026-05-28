@@ -148,6 +148,30 @@ export default function StoryLibrary({
 
     const targetChapters = targetExportNovel.chapters.slice(start, end + 1);
     const untranslatedCount = targetChapters.filter(ch => !ch.translatedText.trim()).length;
+    const estimatedChars = targetChapters.reduce(
+      (sum, ch) => sum + (ch.translatedText?.length || 0),
+      0
+    );
+
+    if (exportFormat === "docx" || exportFormat === "epub") {
+      if (estimatedChars > 900_000) {
+        const msg =
+          "Dung lượng xuất quá lớn cho định dạng này trên điện thoại. " +
+          "Vui lòng giảm phạm vi chương (khuyến nghị <= 900k ký tự mỗi lần) hoặc xuất TXT theo nhiều tập.";
+        if (onAlert) onAlert("Nên chia nhỏ bản xuất", msg);
+        else alert(msg);
+        return;
+      }
+    }
+
+    if (exportFormat === "txt" && estimatedChars > 2_000_000) {
+      const msg =
+        "Khối lượng TXT quá lớn cho một lần xuất trên mobile. " +
+        "Vui lòng chia theo nhiều tập (mỗi tập ~300k-600k ký tự).";
+      if (onAlert) onAlert("Nên chia nhỏ bản xuất", msg);
+      else alert(msg);
+      return;
+    }
     
     const performActualExport = () => {
       if (exportFormat === "txt") {
@@ -184,7 +208,9 @@ export default function StoryLibrary({
       const { blob, manifest, fileName } = await buildTranslationBackupZip(novels, {
         novelId: targetExportNovel.id,
       });
-      await downloadBlobWithFallback(blob, fileName);
+      await downloadBlobWithFallback(blob, fileName, (debugMessage) => {
+        if (onAlert) onAlert("Kết quả lưu file", debugMessage);
+      });
       if (onAlert) {
         onAlert(
           "Sao lưu data dịch",

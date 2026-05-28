@@ -1,3 +1,5 @@
+import { saveBlobWithNativeFallback } from "./nativeFileSave";
+
 /**
  * Import từ điển (chung / riêng) + chuẩn hóa tên trong bản dịch Lab.
  */
@@ -240,14 +242,9 @@ export function buildDictExportTxtContent(
     .join("\n");
 }
 
-export function downloadDictTxtFile(fileName: string, content: string): void {
+export async function downloadDictTxtFile(fileName: string, content: string): Promise<void> {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+  await saveBlobWithNativeFallback(blob, fileName, "text/plain");
 }
 
 function splitBilingualLines(text: string): string[] {

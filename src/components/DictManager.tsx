@@ -700,7 +700,7 @@ export default function DictManager({
     setIsImportPreviewOpen(true);
   };
 
-  const handleExportDictSubset = () => {
+  const handleExportDictSubset = async () => {
     let items: { chinese: string; vietnamese: string }[] = [];
     let fileName = "tu_dien.txt";
 
@@ -732,7 +732,7 @@ export default function DictManager({
     }
 
     const content = buildDictExportTxtContent(items);
-    downloadDictTxtFile(fileName, content);
+    await downloadDictTxtFile(fileName, content);
   };
 
   const handleConfirmImportApply = async () => {
