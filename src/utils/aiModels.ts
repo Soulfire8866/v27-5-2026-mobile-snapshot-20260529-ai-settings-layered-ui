@@ -231,3 +231,177 @@ export function resolveSelectedModel(modelId?: string): string {
 export function getModelsByProvider(provider: AiModelProvider): AiModelDetails[] {
   return MODELS_DATABASE.filter((m) => m.provider === provider);
 }
+
+export type RefreshableProvider = "google" | "claude" | "deepseek" | "qwen" | "openai";
+
+const toDisplayName = (modelId: string): string =>
+  modelId
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeModelIdList = (ids: string[]): string[] => {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const raw of ids) {
+    const id = String(raw || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  return normalized;
+};
+
+const modelScore = (modelId: string): number => {
+  const lower = modelId.toLowerCase();
+  const nums = lower.match(/\d+(?:\.\d+)?/g) || [];
+  let base = 0;
+  nums.forEach((n, idx) => {
+    base += Number.parseFloat(n) * (100 / (idx + 1));
+  });
+  if (lower.includes("latest")) base += 500;
+  if (lower.includes("pro")) base += 30;
+  if (lower.includes("flash")) base += 20;
+  if (lower.includes("sonnet")) base += 15;
+  if (lower.includes("haiku")) base += 10;
+  return base;
+};
+
+const sortIdsByRecency = (ids: string[]): string[] =>
+  [...ids].sort((a, b) => modelScore(b) - modelScore(a) || a.localeCompare(b));
+
+const providerSummary = (
+  provider: RefreshableProvider
+): Pick<AiModelDetails, "strength" | "plan" | "cost" | "description"> => {
+  switch (provider) {
+    case "google":
+      return {
+        strength: "Nhanh, ổn định, phù hợp dịch chương dài.",
+        plan: "Google AI Studio / Vertex AI.",
+        cost: "Theo bảng giá Google.",
+        description: "Danh sách cập nhật trực tiếp từ Google API.",
+      };
+    case "claude":
+      return {
+        strength: "Giữ văn phong mượt, tự nhiên.",
+        plan: "Anthropic API Console.",
+        cost: "Theo bảng giá Anthropic.",
+        description: "Danh sách cập nhật trực tiếp từ Anthropic API.",
+      };
+    case "deepseek":
+      return {
+        strength: "Chi phí thấp, throughput tốt.",
+        plan: "DeepSeek API Platform.",
+        cost: "Theo bảng giá DeepSeek.",
+        description: "Danh sách cập nhật trực tiếp từ DeepSeek API.",
+      };
+    case "qwen":
+      return {
+        strength: "Mạnh ngữ cảnh tiếng Trung, chi phí linh hoạt.",
+        plan: "Alibaba DashScope API.",
+        cost: "Theo bảng giá DashScope.",
+        description: "Danh sách cập nhật trực tiếp từ DashScope API.",
+      };
+    default:
+      return {
+        strength: "Đa dụng, hệ sinh thái rộng.",
+        plan: "OpenAI API Platform.",
+        cost: "Theo bảng giá OpenAI.",
+        description: "Danh sách cập nhật trực tiếp từ OpenAI API.",
+      };
+  }
+};
+
+export function buildDynamicModelsForProvider(
+  provider: RefreshableProvider,
+  modelIds: string[]
+): AiModelDetails[] {
+  const summary = providerSummary(provider);
+  const sorted = sortIdsByRecency(normalizeModelIdList(modelIds));
+  return sorted.map((id, idx) => ({
+    id,
+    name: toDisplayName(id),
+    provider,
+    strength: summary.strength,
+    plan: summary.plan,
+    cost: summary.cost,
+    description: summary.description,
+    recommended: idx === 0,
+  }));
+}
+
+export async function fetchLatestProviderModelIds(
+  provider: RefreshableProvider,
+  apiKey: string
+): Promise<string[]> {
+  const key = (apiKey || "").trim();
+  if (!key) throw new Error("Thiếu API key để làm mới danh sách model.");
+
+  if (provider === "google") {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`
+    );
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`Google API lỗi ${res.status}: ${detail || res.statusText}`);
+    }
+    const data = await res.json();
+    const ids = (data.models || [])
+      .map((m: { name?: string }) => (m.name || "").replace(/^models\//, ""))
+      .filter((id: string) => id.startsWith("gemini-"));
+    return normalizeModelIdList(ids);
+  }
+
+  if (provider === "openai") {
+    const res = await fetch("https://api.openai.com/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`OpenAI API lỗi ${res.status}: ${detail || res.statusText}`);
+    }
+    const data = await res.json();
+    const ids = (data.data || [])
+      .map((m: { id?: string }) => m.id || "")
+      .filter((id: string) => id.startsWith("gpt-") || id.startsWith("o1-") || id.startsWith("o3-"));
+    return normalizeModelIdList(ids);
+  }
+
+  if (provider === "deepseek") {
+    const res = await fetch("https://api.deepseek.com/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`DeepSeek API lỗi ${res.status}: ${detail || res.statusText}`);
+    }
+    const data = await res.json();
+    return normalizeModelIdList((data.data || []).map((m: { id?: string }) => m.id || ""));
+  }
+
+  if (provider === "qwen") {
+    const res = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`DashScope API lỗi ${res.status}: ${detail || res.statusText}`);
+    }
+    const data = await res.json();
+    return normalizeModelIdList((data.data || []).map((m: { id?: string }) => m.id || ""));
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/models", {
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+    },
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Anthropic API lỗi ${res.status}: ${detail || res.statusText}`);
+  }
+  const data = await res.json();
+  return normalizeModelIdList((data.data || []).map((m: { id?: string }) => m.id || ""));
+}

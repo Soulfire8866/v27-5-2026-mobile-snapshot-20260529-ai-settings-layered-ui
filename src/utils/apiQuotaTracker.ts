@@ -3,7 +3,7 @@
  * Không thay header rate-limit của nhà cung cấp — chỉ giúp xoay key trước khi chạm trần.
  */
 
-export type QuotaProvider = "google" | "openai" | "deepseek" | "qwen" | "claude";
+export type QuotaProvider = "google" | "openai" | "deepseek" | "qwen" | "claude" | "custom";
 
 export interface QuotaAttemptLike {
   provider: QuotaProvider;
@@ -22,6 +22,7 @@ const DEFAULT_RPM: Record<QuotaProvider, number> = {
   deepseek: 30,
   qwen: 30,
   claude: 30,
+  custom: 20,
 };
 
 /** Cooldown sau 429 — tăng dần nếu lặp lại */

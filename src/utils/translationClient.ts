@@ -19,6 +19,7 @@ export interface TranslateParams {
     claude?: string;
     deepseek?: string;
     qwen?: string;
+    custom?: string;
   };
   prompt1?: string;
   prompt2?: string;
@@ -29,7 +30,7 @@ export interface TranslateParams {
   directApi?: boolean;
 }
 
-type Provider = "google" | "openai" | "deepseek" | "qwen" | "claude";
+type Provider = "google" | "openai" | "deepseek" | "qwen" | "claude" | "custom";
 
 export interface TranslationAttempt {
   provider: Provider;
@@ -91,6 +92,7 @@ const PROVIDER_KEY_FIELD: Record<Provider, keyof NonNullable<TranslateParams["ap
   deepseek: "deepseek",
   qwen: "qwen",
   claude: "claude",
+  custom: "custom",
 };
 
 /** Luôn gửi kèm — không thay chỉ thị người dùng; bổ sung định dạng đầu ra Lab. */
@@ -328,6 +330,7 @@ export const isRateLimitError = (status: number, detail: string): boolean => {
 };
 
 const getProviderForModel = (model: string): Provider | null => {
+  if (model.startsWith("custom::")) return "custom";
   if (model.startsWith("gemini-")) return "google";
   if (
     model.startsWith("gpt-") ||
@@ -361,6 +364,10 @@ const defaultModelForProvider = (provider: Provider, preferredModel: string): st
         : "qwen-3.5-flash";
     case "claude":
       return preferredModel.startsWith("claude-") ? preferredModel : "claude-4-5-haiku";
+    case "custom":
+      return preferredModel.startsWith("custom::")
+        ? preferredModel
+        : `custom::${preferredModel || "gpt-4o-mini"}`;
     default:
       return preferredModel;
   }
@@ -394,7 +401,7 @@ export const buildTranslationAttempts = (
   }
 
   if (enableCrossRotation) {
-    const crossOrder: Provider[] = ["google", "deepseek", "openai", "qwen", "claude"];
+    const crossOrder: Provider[] = ["google", "deepseek", "openai", "qwen", "claude", "custom"];
     for (const provider of crossOrder) {
       if (provider === primary) continue;
       for (const key of parseApiKeys(apiKeys[PROVIDER_KEY_FIELD[provider]])) {
@@ -405,7 +412,7 @@ export const buildTranslationAttempts = (
 
   // Không nhận diện model: thử mọi key đã nhập (theo thứ tự nhà cung cấp)
   if (attempts.length === 0) {
-    const fallbackOrder: Provider[] = ["google", "deepseek", "openai", "qwen", "claude"];
+    const fallbackOrder: Provider[] = ["google", "deepseek", "openai", "qwen", "claude", "custom"];
     for (const provider of fallbackOrder) {
       for (const key of parseApiKeys(apiKeys[PROVIDER_KEY_FIELD[provider]])) {
         push(provider, key, selectModel);
@@ -449,7 +456,8 @@ const callTranslationApi = async (
   attempt: TranslationAttempt,
   text: string,
   systemInstruction: string,
-  activeTemp: number
+  activeTemp: number,
+  settings: TranslationSettings
 ): Promise<string> => {
   const { provider, key, model } = attempt;
 
@@ -676,6 +684,52 @@ const callTranslationApi = async (
     return data.content?.[0]?.text || "";
   }
 
+  if (provider === "custom") {
+    const apiBase = (settings.customProviderApiBase || "").trim();
+    if (!apiBase) {
+      throw new TranslationApiError(
+        "Nhà cung cấp khác chưa có API Base URL. Hãy cấu hình tại Cài Đặt Model AI Dịch Thuật.",
+        0,
+        false
+      );
+    }
+    const endpoint = `${apiBase.replace(/\/+$/, "")}/chat/completions`;
+    const selectedModel =
+      model.replace(/^custom::/, "").trim() ||
+      settings.customProviderModel?.trim() ||
+      "gpt-4o-mini";
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: text },
+        ],
+        temperature: activeTemp,
+      }),
+    });
+    const detail = res.ok ? "" : await res.text();
+    if (!res.ok) {
+      throw new TranslationApiError(
+        formatHttpApiError(
+          settings.customProviderLabel?.trim() || "Custom provider",
+          res.status,
+          detail,
+          res.statusText
+        ),
+        res.status,
+        isRateLimitError(res.status, detail)
+      );
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "";
+  }
+
   throw new TranslationApiError("Mô hình được chọn chưa hỗ trợ cuộc gọi cục bộ.", 0, false);
 };
 
@@ -706,7 +760,8 @@ const executeWithKeyRotation = async (
   systemInstruction: string,
   activeTemp: number,
   selectModel: string,
-  enableCrossRotation: boolean
+  enableCrossRotation: boolean,
+  settings: TranslationSettings
 ): Promise<string> => {
   if (attempts.length === 0) {
     throw new Error(
@@ -729,7 +784,7 @@ const executeWithKeyRotation = async (
     recordApiRequest(attempt.provider, attempt.key, text);
 
     try {
-      const output = await callTranslationApi(attempt, text, systemInstruction, activeTemp);
+      const output = await callTranslationApi(attempt, text, systemInstruction, activeTemp, settings);
       recordApiSuccess(attempt.provider, attempt.key);
       return output;
     } catch (err: unknown) {
@@ -792,7 +847,8 @@ const translateTextImmediate = async (
     systemInstruction,
     activeTemp,
     selectModel,
-    settings.enableCrossRotation ?? false
+    settings.enableCrossRotation ?? false,
+    settings
   );
   return outputText;
 };
@@ -845,7 +901,8 @@ const callLookupApi = async (
   attempt: TranslationAttempt,
   prompt: string,
   maxTokens: number,
-  systemMessage: string
+  systemMessage: string,
+  settings: TranslationSettings
 ): Promise<string> => {
   const { provider, key } = attempt;
 
@@ -903,6 +960,43 @@ const callLookupApi = async (
     if (!res.ok) {
       throw new TranslationApiError(
         `${provider} lookup error: ${detail || res.statusText}`,
+        res.status,
+        isRateLimitError(res.status, detail)
+      );
+    }
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content || "").trim();
+  }
+
+  if (provider === "custom") {
+    const apiBase = (settings.customProviderApiBase || "").trim();
+    if (!apiBase) {
+      throw new TranslationApiError("Custom provider chưa cấu hình API Base URL.", 0, false);
+    }
+    const endpoint = `${apiBase.replace(/\/+$/, "")}/chat/completions`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model:
+          attempt.model.replace(/^custom::/, "").trim() ||
+          settings.customProviderModel?.trim() ||
+          "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: maxTokens,
+      }),
+    });
+    const detail = res.ok ? "" : await res.text();
+    if (!res.ok) {
+      throw new TranslationApiError(
+        `${settings.customProviderLabel?.trim() || "Custom"} lookup error: ${detail || res.statusText}`,
         res.status,
         isRateLimitError(res.status, detail)
       );
@@ -978,7 +1072,7 @@ const executeLookupWithRotation = async (
     recordApiRequest(attempt.provider, attempt.key, prompt);
 
     try {
-      const raw = await callLookupApi(attempt, prompt, maxTokens, systemMessage);
+      const raw = await callLookupApi(attempt, prompt, maxTokens, systemMessage, settings);
       if (!raw) continue;
       recordApiSuccess(attempt.provider, attempt.key);
       return normalize ? normalize(raw) : raw;

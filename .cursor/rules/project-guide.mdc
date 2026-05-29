@@ -39,4 +39,11 @@ Chi tiết kiến trúc, Lab, quét tên PA-3, Phòng Đọc, build APK: xem gui
   - Nút mở **Bảng Điều Khiển Thư Viện** nằm cùng hàng tiêu đề `Thư Viện Sách Offline` (góc phải), không rơi xuống giữa card.
   - Trong modal, dùng nút **Quay lại** (icon trái + text), không dùng nút `X` đơn lẻ.
   - Tiêu đề chuẩn: `Bảng Điều Khiển Thư Viện`.
+- `SettingsTab` (AI Model Settings):
+ - Luồng UI bắt buộc theo tầng: `Cấu Hình` → `Mở Cài Đặt Model AI Dịch Thuật` → `Danh Sách Model AI` → `Chi tiết nhánh`.
+ - Layer AI render qua Portal + safe-area (`app-chrome-safe-top/bottom`), không để chèn status bar / lơ lửng.
+ - Switch branch ở Layer-3 là **single-active** (không multi-active đồng thời).
+ - Đồng bộ cứng `tier ↔ version ↔ selectedModel`; không để UI hiển thị khác model thực chạy.
+ - Hành động `Cách 1: Dịch lại toàn bộ` phải có xác nhận 2 lớp: switch ON + nhập cụm `XOA TOAN BO` trước khi thực thi.
+ - Banner layer mẹ dùng tiêu đề 1 dòng: `Model AI Dịch Thuật Được Lựa Chọn`.
 - Khi chỉnh visual: ưu tiên sửa qua `src/index.css` token + `src/lib/ui.ts`; hạn chế hardcode class màu rải rác.

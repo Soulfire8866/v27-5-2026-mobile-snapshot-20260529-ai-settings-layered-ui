@@ -4,7 +4,7 @@
 **Repo hiện tại:** `v27.5.2026 mobile` (thư mục gốc, ví dụ `E:\v27.5.2026 mobile`) — kế thừa codebase từ `mobile_v3` / `v24.5.2026 mobile_v3`.  
 **Mục đích tài liệu:** Ghi nhận nguyên tắc, quyết định đã chốt, kiến trúc và hướng xử lý bắt buộc khi tiếp quản sửa lỗi / nâng cấp / tối ưu.  
 **Ngôn ngữ sản phẩm:** UI và nội dung người dùng chủ yếu **tiếng Việt**.  
-**Cập nhật:** 2026-05-29 (bổ sung chuẩn Visual UI/Label + Library Control Panel).
+**Cập nhật:** 2026-05-29 (bổ sung chuẩn Visual UI/Label + Library Control Panel + phân tầng Cài Đặt Model AI).
 
 ---
 
@@ -227,6 +227,69 @@ Khi user báo âm HV sai: bổ sung nhánh theo **ký tự Hán**, không chỉ 
 
 ---
 
+## 7D. Cấu Hình AI — phân tầng mẹ/con (đã chốt)
+
+### 7D.1 Luồng layer bắt buộc
+
+Luồng chuẩn:
+
+1. `Cấu Hình` (layer mẹ)
+2. `Mở Cài Đặt Model AI Dịch Thuật`
+3. `Danh Sách Model AI` (layer 3)
+4. `Cài đặt chi tiết theo nhánh` (layer 4)
+
+**Không gộp chung layer 3 và 4** trong một màn.
+
+### 7D.2 Layer 3 (Danh Sách Model AI)
+
+- Danh sách nhánh: `Google Gemini`, `Anthropic Claude`, `DeepSeek`, `Alibaba Qwen`, `OpenAI ChatGPT`, `Bổ Sung Model Phổ Biến Khác`.
+- Mục “Bổ Sung Model Phổ Biến Khác” có preset nhanh và **bao gồm `Z.ai GLM`**.
+- Có switch theo từng nhánh để biểu thị nhánh active.
+- Cơ chế active là **single-active** (chỉ 1 nhánh hoạt động tại một thời điểm), tránh conflict.
+
+### 7D.3 Layer 4 (Chi tiết nhánh)
+
+- Nhánh active quyết định tập model cho dropdown.
+- Đồng bộ cứng:
+  - `Nhóm model ưu tiên` (tier) ↔ `Phiên bản (2-3 bản mới nhất)` ↔ `settings.selectedModel`.
+  - Không để trạng thái hiển thị khác model thực chạy.
+- Nếu tier không có model khả dụng: hiển thị cảnh báo rõ, không fallback ngầm sang tier khác gây hiểu nhầm.
+
+### 7D.4 Overlay/safe area (Android)
+
+- Layer 3/4 render qua **Portal** (`document.body`) để tách khỏi scroll container của `SettingsTab`.
+- Bắt buộc áp dụng safe-area:
+  - `app-chrome-safe-top`
+  - `app-chrome-safe-bottom`
+- Tránh hiện tượng header bị chèn vào status bar hoặc màn “lơ lửng”.
+
+### 7D.5 Nút điều hướng và nội dung trùng
+
+- Không dùng nút `Đóng` dư thừa khi đã có `Quay lại` theo chuẩn điều hướng chung.
+- Không lặp ghi chú “Chế độ dịch hiện tại...” trong layer chi tiết (đã có ở layer mẹ `Cấu Hình`).
+- Bỏ block trùng “Tóm tắt máy dịch đang dùng” ở layer mẹ nếu đã có trong flow AI Settings.
+
+### 7D.6 Banner layer mẹ (Cấu Hình)
+
+- Tiêu đề chuẩn 1 dòng: **`Model AI Dịch Thuật Được Lựa Chọn`**.
+- Tránh xuống dòng gây vỡ bố cục trên mobile.
+
+### 7D.7 An toàn khi đổi model (hành động phá hủy)
+
+Popup đổi model có 2 nhánh:
+
+- `Cách 1: Dịch lại toàn bộ` (hành động phá hủy, xóa bản dịch cũ)
+- `Cách 2: Chỉ dịch chương còn lại` (an toàn)
+
+Với `Cách 1`, bắt buộc xác nhận 2 lớp (2C):
+
+1. Mở modal cảnh báo nguy hiểm lần 2
+2. Gạt switch xác nhận rủi ro
+3. Nhập đúng cụm xác nhận: `XOA TOAN BO`
+4. Khi đủ điều kiện mới cho phép thực thi
+
+---
+
 ## 8. Lỗi / regression đã sửa (không tái phạm)
 
 | Vấn đề | Cách xử lý |
@@ -240,6 +303,9 @@ Khi user báo âm HV sai: bổ sung nhánh theo **ký tự Hán**, không chỉ 
 | Tiêu đề dọc / «Biên dịch song song» | Header 2 hàng, đổi tên Lab Dịch |
 | Nút mở Library Control lệch bố cục | Ép cùng hàng tiêu đề, icon control rõ nghĩa |
 | Back trong Library Control không đồng nhất | Dùng nút `Quay lại` + icon trái, bỏ `X` đơn lẻ |
+| Layer 3/4 AI bị “lơ lửng” hoặc đè status bar | Dùng Portal + `app-chrome-safe-top/bottom` + reset scroll top |
+| Dropdown tier/model AI lệch state thật | Đồng bộ cứng tier ↔ version ↔ `selectedModel`, bỏ fallback ngầm gây lệch |
+| Rủi ro bấm nhầm “Dịch lại toàn bộ” | Áp dụng xác nhận 2 lớp (switch + nhập `XOA TOAN BO`) |
 
 ---
 
@@ -282,6 +348,8 @@ npm run android:release   # hoặc script release.ps1
 5. Sửa logic quét tên: cập nhật test trong `scripts/qa-user-scenarios.mjs` nếu đổi hành vi PA-3/5B/6BC.
 6. Giải thích bằng tiếng Việt cho user; diff nhỏ, có ví dụ cụ thể Hán–Việt khi thảo luận tên riêng.
 7. Phân biệt rõ **VP / LAB / HV** khi debug — ba nguồn khác nhau.
+8. Với `SettingsTab` AI: không phá luồng layer 1→2→3→4; giữ single-active branch + safe-area Portal.
+9. Với thao tác phá hủy (`retranslate_all`): luôn giữ xác nhận 2 lớp (switch + phrase).
 
 ---
 

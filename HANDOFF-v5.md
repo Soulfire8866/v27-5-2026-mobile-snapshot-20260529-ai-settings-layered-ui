@@ -17,6 +17,25 @@
 | Cấu trúc dòng | **1 dòng Hán = 1 dòng Việt**; dòng 0 CompareView = **tiêu đề** (không nằm trong `sourceText` thân) |
 | `page_trans` | Legacy — **không** dùng cho song ngữ / CompareView |
 | Theme UI | **Shell** (`ui.*`, `appColorScheme`) ≠ **Phòng Đọc** (`settings.theme`) |
+| AI Settings | Luồng 1→2→3→4; Layer 3/4 qua Portal + safe-area; switch branch single-active |
+
+---
+
+## 0B. Chốt mới 2026-05-29 (AI Settings)
+
+- Phân tầng bắt buộc:
+  - Layer 1: `Cấu Hình`
+  - Layer 2: `Mở Cài Đặt Model AI Dịch Thuật`
+  - Layer 3: `Danh Sách Model AI`
+  - Layer 4: `Chi tiết nhánh`
+- Layer 3/4 render qua Portal (`document.body`) và phải giữ `app-chrome-safe-top/bottom`.
+- Switch nhánh ở Layer-3 chạy theo cơ chế **single-active** (không đa nhánh đồng thời).
+- Dropdown tier/version phải đồng bộ cứng với `selectedModel` (không lệch UI-state).
+- Mục “Bổ sung model phổ biến khác” có preset gồm `Z.ai GLM`.
+- Đổi model theo `Cách 1: Dịch lại toàn bộ` bắt buộc xác nhận 2 lớp:
+  - switch ON
+  - nhập đúng cụm `XOA TOAN BO`
+- Banner layer mẹ `Cấu Hình`: `Model AI Dịch Thuật Được Lựa Chọn` (1 dòng).
 
 ---
 
@@ -28,7 +47,7 @@
 |------|---------|
 | Web | Vite + React; `server.ts` tùy chọn |
 | Android | Capacitor 8 — `com.nguyenthaidung.noveltranslator` |
-| Workspace | `e:\v24.5.2026 mobile_v3` |
+| Workspace | `E:\v27.5.2026 mobile` |
 
 ```mermaid
 flowchart TB

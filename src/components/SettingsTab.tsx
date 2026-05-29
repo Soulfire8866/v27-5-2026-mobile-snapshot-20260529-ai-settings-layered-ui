@@ -1,26 +1,25 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  Key,
   Cpu,
-  Info,
   Eye,
   EyeOff,
   Check,
-  ExternalLink,
   Shield,
   HelpCircle,
   Sparkles,
-  Database,
-  Coins,
   Plus,
   Trash2,
   Sun,
   Moon,
-  Monitor
+  Monitor,
+  RefreshCw,
+  Boxes
 } from "lucide-react";
 import { AppColorScheme, TranslationSettings } from "../types";
 import {
   uiPanel,
+  uiTitle,
   uiLabel,
   uiCaption,
   uiBannerHero,
@@ -46,22 +45,20 @@ import {
   getModelsByProvider,
   resolveSelectedModel,
   type AiModelDetails,
+  type RefreshableProvider,
+  fetchLatestProviderModelIds,
+  buildDynamicModelsForProvider,
 } from "../utils/aiModels";
 
 interface SettingsTabProps {
   settings: TranslationSettings;
-  onUpdateApiKey: (platform: "google" | "openai" | "claude" | "deepseek" | "qwen", value: string) => void;
+  onUpdateApiKey: (
+    platform: "google" | "openai" | "claude" | "deepseek" | "qwen" | "custom",
+    value: string
+  ) => void;
   onSelectModel: (modelId: string) => void;
   onUpdateSetting?: (key: keyof TranslationSettings, val: any) => void;
 }
-
-const PROVIDER_SECTION_LABELS: Record<string, string> = {
-  google: "Nhánh Google (Gemini)",
-  claude: "Nhánh Anthropic (Claude)",
-  deepseek: "DeepSeek AI",
-  qwen: "Alibaba Qwen (DashScope)",
-  openai: "Nhánh OpenAI (GPT)",
-};
 
 const PROVIDER_SAVE_SUCCESS_LABELS: Record<string, string> = {
   google: "Đã lưu khóa Google Gemini.",
@@ -69,94 +66,73 @@ const PROVIDER_SAVE_SUCCESS_LABELS: Record<string, string> = {
   claude: "Đã lưu khóa Anthropic Claude.",
   deepseek: "Đã lưu khóa DeepSeek.",
   qwen: "Đã lưu khóa Alibaba Qwen.",
+  custom: "Đã lưu khóa nhà cung cấp khác.",
 };
 
-const PROVIDER_SELECT_STYLES: Record<
-  string,
-  { active: string; ring: string }
-> = {
-  google: {
-    active: "bg-blue-500/10 border-blue-500 text-blue-800 dark:text-blue-300",
-    ring: "border-blue-500 bg-blue-500",
-  },
-  claude: {
-    active: "bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-400",
-    ring: "border-amber-500 bg-amber-500",
-  },
-  deepseek: {
-    active: "bg-cyan-500/10 border-cyan-500 text-cyan-700 dark:text-cyan-300",
-    ring: "border-cyan-500 bg-cyan-500",
-  },
-  qwen: {
-    active: "bg-purple-500/10 border-purple-500 text-purple-700 dark:text-purple-400",
-    ring: "border-purple-500 bg-purple-500",
-  },
-  openai: {
-    active: "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-300",
-    ring: "border-emerald-500 bg-emerald-500",
-  },
+const MODEL_PROVIDER_ORDER: RefreshableProvider[] = [
+  "google",
+  "claude",
+  "deepseek",
+  "qwen",
+  "openai",
+];
+
+const MODEL_PROVIDER_TITLES: Record<RefreshableProvider, string> = {
+  google: "Google Gemini",
+  claude: "Anthropic Claude",
+  deepseek: "DeepSeek",
+  qwen: "Alibaba Qwen",
+  openai: "OpenAI ChatGPT",
 };
 
-function ModelProviderSection({
-  models,
-  providerKey,
-  selectedModelId,
-  onSelectModel,
-}: {
-  models: AiModelDetails[];
-  providerKey: string;
-  selectedModelId: string;
-  onSelectModel: (id: string) => void;
-}) {
-  if (models.length === 0) return null;
-  const styles = PROVIDER_SELECT_STYLES[providerKey] || PROVIDER_SELECT_STYLES.google;
+const OTHER_PROVIDER_PRESETS = [
+  { id: "xai", label: "xAI Grok", base: "https://api.x.ai/v1", model: "grok-3-mini" },
+  { id: "mistral", label: "Mistral AI", base: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
+  { id: "cohere", label: "Cohere Command", base: "https://api.cohere.ai/compatibility/v1", model: "command-r-plus" },
+  { id: "meta", label: "Meta Llama (compat)", base: "https://api.together.xyz/v1", model: "meta-llama/Llama-3.3-70B-Instruct-Turbo" },
+  { id: "moonshot", label: "Moonshot Kimi", base: "https://api.moonshot.ai/v1", model: "kimi-k2-0905-preview" },
+  { id: "zai", label: "Z.ai GLM", base: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4.5-flash" },
+] as const;
 
-  return (
-    <div className="space-y-2 pt-2 border-t border-app-border [&:first-child]:border-t-0 [&:first-child]:pt-0">
-      <div className={`${uiFieldLabel} pl-1 !mb-0`}>
-        {PROVIDER_SECTION_LABELS[providerKey] || providerKey}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {models.map((m) => {
-          const isSelected = selectedModelId === m.id;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => onSelectModel(m.id)}
-              className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all flex justify-between items-start active:scale-98 ${
-                isSelected ? styles.active : `${uiCardInset} hover:bg-app-surface`
-              }`}
-            >
-              <div className="min-w-0 pr-2">
-                <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
-                  <span>{m.name}</span>
-                  {m.recommended && (
-                    <span className="text-[9px] text-amber-500 bg-amber-500/10 border border-amber-500/20 font-semibold px-1.5 py-0.5 rounded-md uppercase">
-                      Đề xuất
-                    </span>
-                  )}
-                </div>
-                <p className={`${uiCaption} mt-1 lines-clamp-1 !text-[10px]`}>
-                  {m.strength}
-                </p>
-              </div>
-              <div
-                className={`w-4 h-4 rounded-full border flex items-center justify-center p-0.5 shrink-0 ${
-                  isSelected
-                    ? `${styles.ring} text-white`
-                    : "border-app-border bg-app-surface"
-                }`}
-              >
-                {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+type AiSettingsLayer = "catalog" | "detail";
+type AiSettingsEntry = RefreshableProvider | "otherPopular";
+
+const providerFromModelId = (modelId: string): AiSettingsEntry => {
+  if (modelId.startsWith("custom::")) return "otherPopular";
+  if (modelId.startsWith("gemini-")) return "google";
+  if (modelId.startsWith("claude-")) return "claude";
+  if (modelId.startsWith("deepseek-")) return "deepseek";
+  if (modelId.startsWith("qwen-") || modelId.includes("qwen")) return "qwen";
+  if (modelId.startsWith("gpt-") || modelId.startsWith("o1-") || modelId.startsWith("o3-")) return "openai";
+  return "google";
+};
+
+const detectModelTier = (modelId: string): string => {
+  const lower = modelId.toLowerCase();
+  if (lower.includes("pro")) return "Pro";
+  if (lower.includes("flash")) return "Flash";
+  if (lower.includes("sonnet")) return "Sonnet";
+  if (lower.includes("haiku")) return "Haiku";
+  if (lower.includes("max")) return "Max";
+  if (lower.includes("plus")) return "Plus";
+  if (lower.includes("turbo")) return "Turbo";
+  return "Khác";
+};
+
+const scoreModelId = (modelId: string): number => {
+  const lower = modelId.toLowerCase();
+  const numbers = lower.match(/\d+(?:\.\d+)?/g) || [];
+  let score = 0;
+  numbers.forEach((v, idx) => {
+    score += Number.parseFloat(v) * (100 / (idx + 1));
+  });
+  if (lower.includes("latest")) score += 500;
+  if (lower.includes("preview")) score += 120;
+  return score;
+};
+
+const sortModelsByRecency = (models: AiModelDetails[]): AiModelDetails[] =>
+  [...models].sort((a, b) => scoreModelId(b.id) - scoreModelId(a.id) || a.id.localeCompare(b.id));
 
 export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, onUpdateSetting }: SettingsTabProps) {
   const [showKeys, setShowKeys] = useState({
@@ -164,22 +140,51 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
     openai: false,
     claude: false,
     deepseek: false,
-    qwen: false
+    qwen: false,
+    custom: false,
   });
 
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [showBudgetTips, setShowBudgetTips] = useState(false);
   const [showStrategyTips, setShowStrategyTips] = useState(false);
+  const [showModelSettingsCenter, setShowModelSettingsCenter] = useState(false);
+  const [aiSettingsLayer, setAiSettingsLayer] = useState<AiSettingsLayer>("catalog");
+  const [aiSettingsEntry, setAiSettingsEntry] = useState<AiSettingsEntry>("google");
+  const [activeProviderTab, setActiveProviderTab] = useState<RefreshableProvider>("google");
+  const [providerModelCatalogs, setProviderModelCatalogs] = useState<Record<RefreshableProvider, AiModelDetails[]>>({
+    google: sortModelsByRecency(getModelsByProvider("google")),
+    claude: sortModelsByRecency(getModelsByProvider("claude")),
+    deepseek: sortModelsByRecency(getModelsByProvider("deepseek")),
+    qwen: sortModelsByRecency(getModelsByProvider("qwen")),
+    openai: sortModelsByRecency(getModelsByProvider("openai")),
+  });
+  const [providerRefreshLoading, setProviderRefreshLoading] = useState<Record<RefreshableProvider, boolean>>({
+    google: false,
+    claude: false,
+    deepseek: false,
+    qwen: false,
+    openai: false,
+  });
+  const [providerRefreshStatus, setProviderRefreshStatus] = useState<Record<RefreshableProvider, string>>({
+    google: "",
+    claude: "",
+    deepseek: "",
+    qwen: "",
+    openai: "",
+  });
+  const [otherProviderPreset, setOtherProviderPreset] = useState("");
+  const [providerTierPick, setProviderTierPick] = useState<Record<RefreshableProvider, string>>({
+    google: "Flash",
+    claude: "Sonnet",
+    deepseek: "Pro",
+    qwen: "Plus",
+    openai: "Khác",
+  });
+  const aiLayerScrollRef = useRef<HTMLDivElement | null>(null);
 
   const resolvedModelId = resolveSelectedModel(settings.selectedModel);
   const activeModel =
     MODELS_DATABASE.find((m) => m.id === resolvedModelId) || MODELS_DATABASE[0];
-
-  const googleModels = getModelsByProvider("google");
-  const claudeModels = getModelsByProvider("claude");
-  const deepseekModels = getModelsByProvider("deepseek");
-  const qwenModels = getModelsByProvider("qwen");
-  const openaiModels = getModelsByProvider("openai");
 
   const handleToggleKeyVisibility = (platform: keyof typeof showKeys) => {
     setShowKeys(prev => ({
@@ -214,20 +219,134 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
     onUpdateSetting?.("translationChunkDictMaxChars", 3400);
   };
 
-  const getProviderBadge = (provider: string) => {
-    switch (provider) {
-      case "google":
-        return <span className="bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans">Google Gemini</span>;
-      case "openai":
-        return <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans">OpenAI GPT</span>;
-      case "claude":
-        return <span className="bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans">Anthropic Claude</span>;
-      case "deepseek":
-        return <span className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans">DeepSeek AI</span>;
-      case "qwen":
-        return <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans">Alibaba Qwen</span>;
-      default:
-        return null;
+  const handleRefreshProviderModels = async (provider: RefreshableProvider) => {
+    const firstKey = (settings.apiKeys?.[provider] || "")
+      .split(",")
+      .map((k) => k.trim())
+      .find(Boolean);
+    if (!firstKey) {
+      setProviderRefreshStatus((prev) => ({
+        ...prev,
+        [provider]: "Bạn chưa nhập API key cho nhánh này.",
+      }));
+      return;
+    }
+    setProviderRefreshLoading((prev) => ({ ...prev, [provider]: true }));
+    setProviderRefreshStatus((prev) => ({ ...prev, [provider]: "Đang làm mới danh sách model..." }));
+    try {
+      const ids = await fetchLatestProviderModelIds(provider, firstKey);
+      if (!ids.length) {
+        setProviderRefreshStatus((prev) => ({
+          ...prev,
+          [provider]: "API phản hồi rỗng. Giữ danh sách local hiện tại.",
+        }));
+        return;
+      }
+      const onlineModels = buildDynamicModelsForProvider(provider, ids);
+      const localModels = getModelsByProvider(provider);
+      const merged = sortModelsByRecency(
+        [...onlineModels, ...localModels].filter(
+          (model, idx, arr) => arr.findIndex((x) => x.id === model.id) === idx
+        )
+      );
+      setProviderModelCatalogs((prev) => ({ ...prev, [provider]: merged }));
+      setProviderRefreshStatus((prev) => ({
+        ...prev,
+        [provider]: `Đã cập nhật ${ids.length} model mới nhất.`,
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setProviderRefreshStatus((prev) => ({
+        ...prev,
+        [provider]: `Không làm mới được: ${message}. App dùng fallback local.`,
+      }));
+    } finally {
+      setProviderRefreshLoading((prev) => ({ ...prev, [provider]: false }));
+    }
+  };
+
+  const activeProviderModels = providerModelCatalogs[activeProviderTab] || [];
+  const activeProviderTiers = Array.from(new Set(activeProviderModels.map((m) => detectModelTier(m.id))));
+  const pickedTier = providerTierPick[activeProviderTab];
+  const filteredTierModels = sortModelsByRecency(
+    activeProviderModels.filter((m) => detectModelTier(m.id) === pickedTier)
+  ).slice(0, 3);
+  const preferredModels = filteredTierModels;
+  const activeProviderSelectedModel = activeProviderModels.find((m) => m.id === settings.selectedModel);
+  const detailModelOptions = preferredModels;
+  const activePickedModel =
+    detailModelOptions.find((m) => m.id === settings.selectedModel) || detailModelOptions[0];
+
+  const applyOtherProviderPreset = (presetId: string) => {
+    setOtherProviderPreset(presetId);
+    const preset = OTHER_PROVIDER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    onUpdateSetting?.("customProviderEnabled", true);
+    onUpdateSetting?.("customProviderLabel", preset.label);
+    onUpdateSetting?.("customProviderApiBase", preset.base);
+    onUpdateSetting?.("customProviderModel", preset.model);
+  };
+
+  const openAiSettingsCenter = () => {
+    setAiSettingsLayer("catalog");
+    setAiSettingsEntry("google");
+    setActiveProviderTab("google");
+    setShowModelSettingsCenter(true);
+  };
+
+  useEffect(() => {
+    if (!showModelSettingsCenter || typeof document === "undefined") return;
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, [showModelSettingsCenter]);
+
+  useEffect(() => {
+    if (!showModelSettingsCenter) return;
+    requestAnimationFrame(() => {
+      if (aiLayerScrollRef.current) aiLayerScrollRef.current.scrollTop = 0;
+    });
+  }, [showModelSettingsCenter, aiSettingsLayer, aiSettingsEntry]);
+
+  const activeEntry = providerFromModelId(settings.selectedModel || "");
+
+  useEffect(() => {
+    if (activeEntry === "otherPopular") return;
+    if (activeEntry !== activeProviderTab) return;
+    const selectedTier = detectModelTier(settings.selectedModel || "");
+    setProviderTierPick((prev) =>
+      prev[activeProviderTab] === selectedTier
+        ? prev
+        : {
+            ...prev,
+            [activeProviderTab]: selectedTier,
+          }
+    );
+  }, [activeEntry, activeProviderTab, settings.selectedModel]);
+
+  const activateProviderEntry = (entry: AiSettingsEntry) => {
+    if (entry === "otherPopular") {
+      const customModel = (settings.customProviderModel || "").trim();
+      if (customModel) {
+        onSelectModel(`custom::${customModel}`);
+      } else {
+        setAiSettingsLayer("detail");
+        setAiSettingsEntry("otherPopular");
+      }
+      return;
+    }
+
+    const catalog = sortModelsByRecency(providerModelCatalogs[entry] || []);
+    const currentStillInProvider = catalog.find((m) => m.id === settings.selectedModel);
+    const modelToActivate = currentStillInProvider?.id || catalog.find((m) => m.recommended)?.id || catalog[0]?.id;
+    if (modelToActivate) {
+      setProviderTierPick((prev) => ({
+        ...prev,
+        [entry]: detectModelTier(modelToActivate),
+      }));
+      onSelectModel(modelToActivate);
     }
   };
 
@@ -235,7 +354,7 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
   const hasAnyApiKey = Object.values(currentKeys).some((v) => (v || "").trim().length > 0);
 
   const renderMultiKeyFields = (
-    platform: "google" | "openai" | "claude" | "deepseek" | "qwen",
+    platform: "google" | "openai" | "claude" | "deepseek" | "qwen" | "custom",
     placeholder = "sk-..."
   ) => {
     const rawVal = currentKeys[platform] || "";
@@ -369,7 +488,9 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <Shield className="w-5.5 h-5.5 text-amber-500 animate-pulse" />
-            <h2 className="text-base font-bold tracking-tight">Trung tâm cấu hình & máy dịch đa nền tảng</h2>
+            <h2 className="text-base font-bold tracking-tight whitespace-nowrap truncate">
+              Model AI Dịch Thuật Được Lựa Chọn
+            </h2>
           </div>
           <p className="text-xs text-white/75 max-w-2xl leading-relaxed">
             Áp đặt và tinh chỉnh các đầu API Key bảo mật. Hỗ trợ xoay vòng tải luân phiên để tránh lỗi rate limit của tài khoản.
@@ -396,188 +517,31 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: API KEYS FORM & CONFIG */}
-        <div className="lg:col-span-12 xl:col-span-5 flex flex-col gap-6 w-full">
-          {/* API KEYS CARD */}
-          <div className={`${uiPanel} !p-5 space-y-5`}>
+        <div className="lg:col-span-12 xl:col-span-12 flex flex-col gap-6 w-full">
+          <div className={`${uiPanel} !p-5 space-y-4`}>
             <div className="flex items-center gap-2 pb-3 border-b border-app-border">
-              <Key className="w-5 h-5 text-amber-500" />
-              <h3 className={`${uiLabel} !text-xs`}>Nhập API key</h3>
+              <Boxes className="w-5 h-5 text-app-accent" />
+              <h3 className={`${uiLabel} !text-xs`}>Cài Đặt Model AI Dịch Thuật</h3>
             </div>
-
-            <p className={`${uiCaption} !text-[11px] italic select-none`}>
-              * Khóa API được lưu trữ trực tiếp và tuyệt đối mã hóa tại trình duyệt của bạn (Local Storage) để bảo mật cao nhất hằng ngày.
+            <p className={uiCaption}>
+              Gom toàn bộ API key, chọn model ưu tiên, bảng tóm tắt hiệu năng và nhà cung cấp mở rộng vào một giao diện phụ.
             </p>
-
-            {/* Cross-platform API Key rotation toggle (Height 11 UI selection) */}
-            <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-app-text flex items-center gap-2 cursor-pointer select-none">
-                  <Cpu className="w-4 h-4 text-amber-500" />
-                  Xoay tua API Key chéo nền tảng
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onUpdateSetting?.("enableCrossRotation", !settings.enableCrossRotation)}
-                  className={`${uiToggleTrack} ${
-                    settings.enableCrossRotation ? uiToggleTrackOn : uiToggleTrackOff
-                  }`}
-                >
-                  <span
-                    className={`${uiToggleThumb} ${
-                      settings.enableCrossRotation ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+            <div className={`${uiCardInset} p-4 space-y-2`}>
+              <span className="text-[11px] font-bold text-app-text">
+                Model hiện tại: <span className="text-app-accent">{activeModel.name}</span>
+              </span>
               <p className={`${uiCaption} !text-[10px]`}>
-                Khi bật, hệ dịch thuật sẽ lấy một trong các dòng khóa bất kì của bạn hằng giây để kích hoạt dịch đa luồng, loại bỏ nghẽn rate limit của một account đơn lẻ.
+                Thứ tự nhánh: Google Gemini → Anthropic Claude → DeepSeek → Alibaba Qwen (+ OpenAI và nhà cung cấp khác).
               </p>
             </div>
-
-            {/* CẤU HÌNH HOẠT ĐỘNG LOCAL / OFFLINE BẢO MẬT */}
-            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-app-text flex items-center gap-2 cursor-pointer select-none">
-                  <Sparkles className="w-4 h-4 text-emerald-500" />
-                  Dịch trực tiếp từ thiết bị (Direct Client API)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onUpdateSetting?.("directClientTranslation", !settings.directClientTranslation)}
-                  className={`${uiToggleTrack} ${
-                    settings.directClientTranslation ? "bg-emerald-500" : uiToggleTrackOff
-                  }`}
-                >
-                  <span
-                    className={`${uiToggleThumb} ${
-                      settings.directClientTranslation ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-              <p className={`${uiCaption} !text-[10px]`}>
-                Kích hoạt để ứng dụng kết nối trực tiếp đến Google/OpenAI/DeepSeek mà không đi qua máy chủ trung gian. Giúp ứng dụng hoạt động độc lập tuyệt đối, loại bỏ sự phụ thuộc khi máy chủ bảo trì.
-              </p>
-
-              <div className="space-y-1.5 pt-2 border-t border-emerald-500/10">
-                <span className={uiFieldLabel}>Máy chủ dịch thuật từ xa (Remote Proxy):</span>
-                <input
-                  type="text"
-                  value={settings.remoteServerUrl || ""}
-                  onChange={(e) => onUpdateSetting?.("remoteServerUrl", e.target.value)}
-                  placeholder="https://tên-máy-chủ-củ-bạn.run.app"
-                  className={`${uiInput} !min-h-11 rounded-xl !text-xs font-mono focus:ring-emerald-500/50 focus:border-emerald-500`}
-                />
-                <p className={`${uiCaption} !text-[9.5px]`}>
-                  Cấu hình URL Cloud Run hoặc Server của bạn. Bỏ trống để sử dụng máy chủ mặc định của ứng dụng.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-              
-              {/* Google Gemini Card */}
-              <div className={`${uiCardInset} space-y-2 p-4`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-app-text flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                    Google Gemini Key
-                  </label>
-                  <a
-                    href="https://aistudio.google.com/"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5"
-                  >
-                    Lấy Key Free <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                {renderMultiKeyFields("google", "AIzaSy...")}
-              </div>
-
-              {/* OpenAI Card */}
-              <div className={`${uiCardInset} space-y-2 p-4`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-app-text flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    OpenAI GPT Key
-                  </label>
-                  <a
-                    href="https://platform.openai.com/api-keys"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="text-[10px] text-emerald-500 hover:underline flex items-center gap-0.5"
-                  >
-                    Lấy OpenAI Key <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                {renderMultiKeyFields("openai", "sk-proj-...")}
-              </div>
-
-              {/* Anthropic Claude */}
-              <div className={`${uiCardInset} space-y-2 p-4`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-app-text flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                    Anthropic Claude Key
-                  </label>
-                  <a
-                    href="https://console.anthropic.com/"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="text-[10px] text-amber-500 hover:underline flex items-center gap-0.5"
-                  >
-                    Mở Console <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                {renderMultiKeyFields("claude", "sk-ant-...")}
-              </div>
-
-              {/* DeepSeek API */}
-              <div className={`${uiCardInset} space-y-2 p-4`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-app-text flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
-                    DeepSeek API Key
-                  </label>
-                  <a
-                    href="https://platform.deepseek.com/"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="text-[10px] text-cyan-500 hover:underline flex items-center gap-0.5"
-                  >
-                    Lấy DeepSeek Key <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                {renderMultiKeyFields("deepseek", "sk-...")}
-              </div>
-
-              {/* Alibaba Qwen */}
-              <div className={`${uiCardInset} space-y-2 p-4`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-app-text flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
-                    Alibaba Qwen Key (DashScope)
-                  </label>
-                  <a
-                    href="https://dashscope.console.aliyun.com/"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="text-[10px] text-purple-500 hover:underline flex items-center gap-0.5"
-                  >
-                    Lấy Qwen Key <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                {renderMultiKeyFields("qwen", "lm-...")}
-              </div>
-
-            </form>
-            {saveSuccess && (
-              <div className={`${uiInlineFeedbackSuccess} flex items-center gap-1.5`}>
-                <Check className="w-3.5 h-3.5 shrink-0" />
-                {PROVIDER_SAVE_SUCCESS_LABELS[saveSuccess] || "Đã lưu cấu hình API key."}
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={openAiSettingsCenter}
+              className={`${uiBtnPrimary} w-full !min-h-11`}
+            >
+              <Cpu className="w-4 h-4" />
+              Mở Cài Đặt Model AI Dịch Thuật
+            </button>
           </div>
 
           {/* AI QUALITY CARD */}
@@ -858,114 +822,325 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
 
         </div>
 
-        {/* RIGHT COLUMN: AI PROVIDERS AND MODEL SELECTOR WITH DETAILS CARD */}
-        <div className="lg:col-span-12 xl:col-span-7 flex flex-col gap-6 w-full">
-          {/* Main model collection grids selector */}
-          <div className={`${uiPanel} !p-5 space-y-4`}>
-            <div className="flex items-center justify-between pb-3 border-b border-app-border">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-amber-500" />
-                <h3 className={`${uiLabel} !text-xs`}>Ưu tiên chọn model AI</h3>
-              </div>
-              <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-semibold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider">
-                {MODELS_DATABASE.length} Models
-              </span>
-            </div>
-
-            <p className={`${uiCaption} mt-1`}>
-              Vui lòng click chọn một mô hình thích hợp. Giao diện Fluent Design hỗ trợ kết nối trực tiếp đến core máy dịch tương đương của bạn:
-            </p>
-
-            <div className="space-y-0 max-h-[480px] overflow-y-auto custom-scrollbar pr-2">
-              <ModelProviderSection
-                models={googleModels}
-                providerKey="google"
-                selectedModelId={settings.selectedModel}
-                onSelectModel={onSelectModel}
-              />
-              <ModelProviderSection
-                models={claudeModels}
-                providerKey="claude"
-                selectedModelId={settings.selectedModel}
-                onSelectModel={onSelectModel}
-              />
-              <ModelProviderSection
-                models={deepseekModels}
-                providerKey="deepseek"
-                selectedModelId={settings.selectedModel}
-                onSelectModel={onSelectModel}
-              />
-              <ModelProviderSection
-                models={qwenModels}
-                providerKey="qwen"
-                selectedModelId={settings.selectedModel}
-                onSelectModel={onSelectModel}
-              />
-              <ModelProviderSection
-                models={openaiModels}
-                providerKey="openai"
-                selectedModelId={settings.selectedModel}
-                onSelectModel={onSelectModel}
-              />
-            </div>
-          </div>
-
-          {/* DYNAMIC METADATA DETAILS CARD BRAND */}
-          <div className="bg-gradient-to-br from-app-accent to-app-accent-hover text-white rounded-lg p-5 border border-app-border shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 translate-x-12 -translate-y-6 opacity-[0.06] pointer-events-none">
-              <Cpu className="w-48 h-48 text-white" />
-            </div>
-
-            <div className="flex items-center justify-between border-b border-white/15 pb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4.5 h-4.5 text-amber-400 animate-pulse" />
-                <h4 className={`${uiFieldLabel} !mb-0 text-white/60`}>Bảng tóm tắt hiệu năng</h4>
-              </div>
-              {getProviderBadge(activeModel.provider)}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-              <span className="text-base font-semibold text-amber-300 tracking-tight font-mono">{activeModel.name}</span>
-              <span className="bg-white/10 px-2.5 py-1 border border-white/20 rounded-lg text-[10px] text-white/75 font-bold uppercase tracking-wider">
-                Ưu điểm: {activeModel.strength}
-              </span>
-            </div>
-
-            <div className="space-y-3.5 text-xs text-white/85 pt-3">
-              
-              <div className="space-y-1 bg-black/25 p-3.5 rounded-xl border border-white/10">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-400 tracking-wider">
-                  <Database className="w-4 h-4" /> Phương thức bồi đắp tài khoản:
-                </div>
-                <p className="leading-relaxed font-bold text-white">
-                  {activeModel.plan}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 bg-black/15 p-2 rounded-xl border border-white/10">
-                <span className="font-bold text-white/55 flex items-center gap-1 shrink-0 uppercase tracking-widest text-[9.5px]">
-                  <Coins className="w-4 h-4 text-amber-500" /> Chi phí ước lượng:
-                </span>
-                <span className="font-mono text-white bg-white/10 px-2.5 py-0.5 rounded-md border border-white/20 font-semibold text-xs">
-                  {activeModel.cost}
-                </span>
-              </div>
-
-              <div className="space-y-1.5 pt-1.5">
-                <div className="flex items-center gap-1.5 text-white/55 font-bold uppercase text-[9.5px]">
-                  <Info className="w-4 h-4" /> Bản mô tả máy dịch:
-                </div>
-                <p className="text-[11.5px] text-white/70 leading-relaxed font-sans italic p-2 bg-white/5 rounded-lg border border-white/10">
-                  &ldquo;{activeModel.description}&rdquo;
-                </p>
-              </div>
-
-            </div>
-
-          </div>
-        </div>
-
       </div>
+
+      {showModelSettingsCenter && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[53] bg-app-surface flex flex-col app-chrome-safe-top app-chrome-safe-bottom">
+          <div className="sticky top-0 z-10 border-b border-app-border bg-app-surface px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className={`${uiTitle} truncate`}>
+                {aiSettingsLayer === "catalog"
+                  ? "Danh Sách Model AI"
+                  : aiSettingsEntry === "otherPopular"
+                    ? "Bổ Sung Model Phổ Biến Khác"
+                    : `Cài Đặt Chi Tiết: ${MODEL_PROVIDER_TITLES[activeProviderTab]}`}
+              </h3>
+              <p className={`${uiCaption} mt-1`}>
+                {aiSettingsLayer === "catalog"
+                  ? "Chọn nhánh model AI để mở lớp cài đặt chi tiết."
+                  : "Thiết lập API key, model ưu tiên và tham số liên quan cho nhánh đã chọn."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (aiSettingsLayer === "detail") {
+                    setAiSettingsLayer("catalog");
+                    return;
+                  }
+                  setShowModelSettingsCenter(false);
+                }}
+                className={`${uiBtnGhost} !min-h-10 !px-3`}
+              >
+                {aiSettingsLayer === "detail" ? "Quay lại danh sách" : "Quay lại"}
+              </button>
+            </div>
+          </div>
+
+          <div ref={aiLayerScrollRef} className="flex-1 p-3 sm:p-4 pb-6 sm:pb-8 overflow-y-auto custom-scrollbar">
+            {aiSettingsLayer === "catalog" ? (
+              <div className="h-full max-w-3xl mx-auto">
+                <div className={`${uiPanel} !p-3 sm:!p-4 space-y-3`}>
+                {MODEL_PROVIDER_ORDER.map((provider) => (
+                  <div
+                    key={provider}
+                    className={`${uiCardInset} !p-2.5 flex items-center gap-2`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveProviderTab(provider);
+                        setAiSettingsEntry(provider);
+                        setAiSettingsLayer("detail");
+                      }}
+                      className={`${uiBtnGhost} flex-1 !justify-between !min-h-11 text-[15px] sm:text-sm`}
+                    >
+                      <span className="text-left">{MODEL_PROVIDER_TITLES[provider]}</span>
+                      <span className="text-app-text-muted whitespace-nowrap">Mở chi tiết</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activeEntry === provider}
+                      onClick={() => activateProviderEntry(provider)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                        activeEntry === provider ? "bg-app-accent" : "bg-app-border"
+                      }`}
+                      title={`Bật ${MODEL_PROVIDER_TITLES[provider]}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                          activeEntry === provider ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                ))}
+                <div className={`${uiCardInset} !p-2.5 flex items-center gap-2`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiSettingsEntry("otherPopular");
+                      setAiSettingsLayer("detail");
+                    }}
+                    className={`${uiBtnGhost} flex-1 !justify-between !min-h-11 text-[15px] sm:text-sm`}
+                  >
+                    <span className="text-left">Bổ Sung Model Phổ Biến Khác</span>
+                    <span className="text-app-text-muted whitespace-nowrap">Mở chi tiết</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={activeEntry === "otherPopular"}
+                    onClick={() => activateProviderEntry("otherPopular")}
+                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                      activeEntry === "otherPopular" ? "bg-app-accent" : "bg-app-border"
+                    }`}
+                    title="Bật nhánh model bổ sung"
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                        activeEntry === "otherPopular" ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              </div>
+            ) : aiSettingsEntry === "otherPopular" ? (
+              <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4 h-full overflow-y-auto custom-scrollbar pr-1">
+                <div className={`${uiPanel} !p-4 space-y-3`}>
+                  <div className="space-y-1.5">
+                    <span className={uiFieldLabel}>Preset provider phổ biến</span>
+                    <select
+                      value={otherProviderPreset}
+                      onChange={(e) => applyOtherProviderPreset(e.target.value)}
+                      className={`${uiInput} !min-h-10 !text-xs`}
+                    >
+                      <option value="">Chọn nhanh một nhà cung cấp...</option>
+                      {OTHER_PROVIDER_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="space-y-1.5">
+                      <span className={uiFieldLabel}>Tên hiển thị</span>
+                      <input
+                        type="text"
+                        value={settings.customProviderLabel || ""}
+                        onChange={(e) => onUpdateSetting?.("customProviderLabel", e.target.value)}
+                        placeholder="Ví dụ: Z.ai GLM"
+                        className={`${uiInput} !min-h-10 !text-xs`}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className={uiFieldLabel}>Model ID mặc định</span>
+                      <input
+                        type="text"
+                        value={settings.customProviderModel || ""}
+                        onChange={(e) => onUpdateSetting?.("customProviderModel", e.target.value)}
+                        placeholder="glm-4.5-flash"
+                        className={`${uiInput} !min-h-10 !text-xs font-mono`}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className={uiFieldLabel}>API Base URL</span>
+                    <input
+                      type="text"
+                      value={settings.customProviderApiBase || ""}
+                      onChange={(e) => onUpdateSetting?.("customProviderApiBase", e.target.value)}
+                      placeholder="https://open.bigmodel.cn/api/paas/v4"
+                      className={`${uiInput} !min-h-10 !text-xs font-mono`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className={uiFieldLabel}>API key (custom)</span>
+                    {renderMultiKeyFields("custom", "sk-...")}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const customModel = (settings.customProviderModel || "").trim();
+                      if (!customModel) return;
+                      onSelectModel(`custom::${customModel}`);
+                    }}
+                    className={`${uiBtnGhost} w-full !min-h-10`}
+                  >
+                    Dùng model custom cho bản dịch mới
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4 h-full overflow-y-auto custom-scrollbar pr-1">
+                <div className={`${uiPanel} !p-4 space-y-3`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <h4 className={uiLabel}>{MODEL_PROVIDER_TITLES[activeProviderTab]}</h4>
+                    <button
+                      type="button"
+                      onClick={() => void handleRefreshProviderModels(activeProviderTab)}
+                      disabled={providerRefreshLoading[activeProviderTab]}
+                      className={`${uiBtnSecondary} !min-h-10 !px-3`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${providerRefreshLoading[activeProviderTab] ? "animate-spin" : ""}`} />
+                      Refresh model
+                    </button>
+                  </div>
+                  <p className={`${uiCaption} !text-[10px]`}>
+                    {providerRefreshStatus[activeProviderTab] || "Dùng danh sách local; bấm Refresh để lấy model mới nhất theo API key của nhánh này."}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className={`${uiCardInset} p-3 space-y-1.5`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-app-text">Xoay tua API key chéo nhánh</span>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateSetting?.("enableCrossRotation", !settings.enableCrossRotation)}
+                          className={`${uiToggleTrack} ${settings.enableCrossRotation ? uiToggleTrackOn : uiToggleTrackOff}`}
+                        >
+                          <span className={`${uiToggleThumb} ${settings.enableCrossRotation ? "translate-x-5" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`${uiCardInset} p-3 space-y-1.5`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-app-text">Direct Client API</span>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateSetting?.("directClientTranslation", !settings.directClientTranslation)}
+                          className={`${uiToggleTrack} ${
+                            settings.directClientTranslation ? "bg-emerald-500" : uiToggleTrackOff
+                          }`}
+                        >
+                          <span className={`${uiToggleThumb} ${settings.directClientTranslation ? "translate-x-5" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className={uiFieldLabel}>Remote Proxy URL (tuỳ chọn)</span>
+                    <input
+                      type="text"
+                      value={settings.remoteServerUrl || ""}
+                      onChange={(e) => onUpdateSetting?.("remoteServerUrl", e.target.value)}
+                      placeholder="https://ten-proxy.run.app"
+                      className={`${uiInput} !min-h-10 !text-xs font-mono`}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <span className={uiFieldLabel}>Nhập API key</span>
+                    {renderMultiKeyFields(activeProviderTab, activeProviderTab === "google" ? "AIzaSy..." : "sk-...")}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="space-y-1.5">
+                      <span className={uiFieldLabel}>Nhóm model ưu tiên</span>
+                      <select
+                        value={providerTierPick[activeProviderTab] || "Khác"}
+                        onChange={(e) => {
+                          const nextTier = e.target.value;
+                          setProviderTierPick((prev) => ({
+                            ...prev,
+                            [activeProviderTab]: nextTier,
+                          }));
+                          const nextTierModels = sortModelsByRecency(
+                            activeProviderModels.filter((m) => detectModelTier(m.id) === nextTier)
+                          ).slice(0, 3);
+                          if (nextTierModels.length === 0) {
+                            setProviderRefreshStatus((prev) => ({
+                              ...prev,
+                              [activeProviderTab]:
+                                `Nhóm "${nextTier}" chưa có model khả dụng. Hãy đổi nhóm hoặc bấm Refresh model.`,
+                            }));
+                            return;
+                          }
+                          if (!nextTierModels.some((m) => m.id === settings.selectedModel)) {
+                            onSelectModel(nextTierModels[0].id);
+                          }
+                        }}
+                        className={`${uiInput} !min-h-10 !text-xs`}
+                      >
+                        {activeProviderTiers.map((tier) => (
+                          <option key={tier} value={tier}>
+                            {tier}
+                          </option>
+                        ))}
+                        {activeProviderTiers.length === 0 && <option value="Khác">Khác</option>}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className={uiFieldLabel}>Phiên bản (2-3 bản mới nhất)</span>
+                      <select
+                        value={activePickedModel?.id || ""}
+                        onChange={(e) => onSelectModel(e.target.value)}
+                        className={`${uiInput} !min-h-10 !text-xs`}
+                      >
+                        {detailModelOptions.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.name}
+                          </option>
+                        ))}
+                        {detailModelOptions.length === 0 && <option value="">Không có model khả dụng</option>}
+                      </select>
+                      {detailModelOptions.length === 0 && (
+                        <p className={`${uiCaption} !text-[10px]`}>
+                          Nhóm đang chọn chưa có model nào. Hãy đổi nhóm model hoặc bấm Refresh model.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {activePickedModel && (
+                  <div className="bg-gradient-to-br from-app-accent to-app-accent-hover text-white rounded-xl p-4 border border-app-border">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold tracking-wide uppercase">Bảng tóm tắt hiệu năng</span>
+                      <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full">{activePickedModel.name}</span>
+                    </div>
+                    <p className="text-sm mt-2 font-semibold text-amber-200">{activePickedModel.strength}</p>
+                    <p className="text-xs mt-1 text-white/85">{activePickedModel.description}</p>
+                    <div className="mt-2 text-[11px] text-white/75">
+                      <div>Chi phí: {activePickedModel.cost}</div>
+                      <div>Phù hợp: {activePickedModel.plan}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {saveSuccess && (
+              <div className="max-w-3xl mx-auto mt-3 sm:mt-4">
+                <div className={`${uiInlineFeedbackSuccess} flex items-center gap-1.5`}>
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  {PROVIDER_SAVE_SUCCESS_LABELS[saveSuccess] || "Đã lưu cấu hình API key."}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -131,7 +131,8 @@ const DEFAULT_SETTINGS: TranslationSettings = {
     openai: "",
     claude: "",
     deepseek: "",
-    qwen: ""
+    qwen: "",
+    custom: "",
   },
   temperature: 0.3,
   topK: 64,
@@ -147,6 +148,10 @@ const DEFAULT_SETTINGS: TranslationSettings = {
   translationChunkDictMaxChars: 2600,
   translationBudgetGuardEnabled: true,
   translationBudgetPerChapter: 100000,
+  customProviderEnabled: false,
+  customProviderLabel: "",
+  customProviderApiBase: "",
+  customProviderModel: "",
 };
 
 export default function App() {
@@ -238,6 +243,11 @@ export default function App() {
     overwriteSummary: string;
   } | null>(null);
   const [showModelChangePopup, setShowModelChangePopup] = useState<{ newModelId: string } | null>(null);
+  const [showModelResetDangerConfirm, setShowModelResetDangerConfirm] = useState<{
+    newModelId: string;
+    armed: boolean;
+    phrase: string;
+  } | null>(null);
 
   // Register last active novel ID tracker
   useEffect(() => {
@@ -2307,7 +2317,12 @@ export default function App() {
               <button
                 onClick={async () => {
                   if (showModelChangePopup) {
-                    await handleApplyModelChange(showModelChangePopup.newModelId, "retranslate_all");
+                    setShowModelResetDangerConfirm({
+                      newModelId: showModelChangePopup.newModelId,
+                      armed: false,
+                      phrase: "",
+                    });
+                    setShowModelChangePopup(null);
                   }
                 }}
                 className="w-full text-left p-3.5 border border-amber-500/30 dark:border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 rounded-xl text-xs font-bold transition-all cursor-pointer group"
@@ -2337,6 +2352,93 @@ export default function App() {
                 className="w-full h-10 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl text-xs font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-all"
               >
                 Hủy bỏ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showModelResetDangerConfirm && (
+        <div
+          className="fixed inset-0 app-modal-overlay flex items-center justify-center p-4 z-[55] select-none animate-fade-in"
+          id="model-reset-danger-confirm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xác nhận xóa bản dịch cũ"
+        >
+          <div className={`${uiCard} app-sheet-handle app-chrome-safe-top app-chrome-safe-bottom p-5 shadow-2xl max-w-md w-full animate-scale-up max-h-[calc(100dvh-2rem)] overflow-y-auto custom-scrollbar space-y-3`}>
+            <h4 className={`${uiTitle} flex items-center gap-2`}>
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+              Xác nhận nguy hiểm: Dịch lại toàn bộ
+            </h4>
+            <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+              Thao tác này sẽ xóa toàn bộ bản dịch hiện có của tất cả truyện/chương. Không thể hoàn tác.
+            </p>
+            <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-100">
+                  Tôi đã hiểu rủi ro và đồng ý xóa toàn bộ bản dịch cũ
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showModelResetDangerConfirm.armed}
+                  onClick={() =>
+                    setShowModelResetDangerConfirm((prev) =>
+                      prev ? { ...prev, armed: !prev.armed } : prev
+                    )
+                  }
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    showModelResetDangerConfirm.armed ? "bg-red-500" : "bg-app-border"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                      showModelResetDangerConfirm.armed ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200">
+                  Nhập chính xác cụm sau để xác nhận: <span className="font-mono">XOA TOAN BO</span>
+                </label>
+                <input
+                  type="text"
+                  value={showModelResetDangerConfirm.phrase}
+                  onChange={(e) =>
+                    setShowModelResetDangerConfirm((prev) =>
+                      prev ? { ...prev, phrase: e.target.value } : prev
+                    )
+                  }
+                  placeholder="XOA TOAN BO"
+                  className={`${uiInput} !min-h-10 !text-xs font-mono`}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowModelResetDangerConfirm(null)}
+                className={`${uiBtnGhost} flex-1`}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const snapshot = showModelResetDangerConfirm;
+                  if (!snapshot) return;
+                  await handleApplyModelChange(snapshot.newModelId, "retranslate_all");
+                  setShowModelResetDangerConfirm(null);
+                }}
+                disabled={
+                  !showModelResetDangerConfirm.armed ||
+                  showModelResetDangerConfirm.phrase.trim().toUpperCase() !== "XOA TOAN BO"
+                }
+                className={`${uiBtnDanger} flex-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Xóa và dịch lại toàn bộ
               </button>
             </div>
           </div>

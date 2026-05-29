@@ -80,6 +80,7 @@ export interface TranslationSettings {
     claude?: string;
     deepseek?: string;
     qwen?: string;
+    custom?: string;
   };
   temperature?: number;
   topK?: number;
@@ -106,4 +107,9 @@ export interface TranslationSettings {
   translationBudgetGuardEnabled?: boolean;
   /** Ngưỡng token ước tính/chương để bật cảnh báo xác nhận */
   translationBudgetPerChapter?: number;
+  /** Cấu hình nhà cung cấp mở rộng (OpenAI-compatible) cho tương lai */
+  customProviderEnabled?: boolean;
+  customProviderLabel?: string;
+  customProviderApiBase?: string;
+  customProviderModel?: string;
 }
