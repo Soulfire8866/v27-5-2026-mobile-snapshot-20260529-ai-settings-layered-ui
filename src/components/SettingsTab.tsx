@@ -168,6 +168,8 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
   });
 
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [showBudgetTips, setShowBudgetTips] = useState(false);
+  const [showStrategyTips, setShowStrategyTips] = useState(false);
 
   const resolvedModelId = resolveSelectedModel(settings.selectedModel);
   const activeModel =
@@ -184,6 +186,32 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
       ...prev,
       [platform]: !prev[platform]
     }));
+  };
+
+  const applyTokenPreset = (budgetPerChapter: number, dictChunkMaxChars: number) => {
+    onUpdateSetting?.("translationBudgetPerChapter", budgetPerChapter);
+    onUpdateSetting?.("translationChunkDictMaxChars", dictChunkMaxChars);
+  };
+
+  const applyTranslationStrategyPreset = (mode: "safe" | "balanced" | "quality") => {
+    if (mode === "safe") {
+      onUpdateSetting?.("maxThreads", 1);
+      onUpdateSetting?.("translationSequentialChunks", false);
+      onUpdateSetting?.("translationBudgetPerChapter", 80000);
+      onUpdateSetting?.("translationChunkDictMaxChars", 1600);
+      return;
+    }
+    if (mode === "balanced") {
+      onUpdateSetting?.("maxThreads", 2);
+      onUpdateSetting?.("translationSequentialChunks", false);
+      onUpdateSetting?.("translationBudgetPerChapter", 100000);
+      onUpdateSetting?.("translationChunkDictMaxChars", 2600);
+      return;
+    }
+    onUpdateSetting?.("maxThreads", 1);
+    onUpdateSetting?.("translationSequentialChunks", true);
+    onUpdateSetting?.("translationBudgetPerChapter", 140000);
+    onUpdateSetting?.("translationChunkDictMaxChars", 3400);
   };
 
   const getProviderBadge = (provider: string) => {
@@ -609,6 +637,159 @@ export default function SettingsTab({ settings, onUpdateApiKey, onSelectModel, o
                 <p>• <strong>Gói Google MIỄN PHÍ:</strong> Bắt buộc đặt <strong>1 Luồng</strong>. Hạn mức Free Tier của Google AI Studio chỉ cho phép gọi 15 yêu cầu trên một phút, gọi nhiều hơn sẽ bị block lỗi 429.</p>
                 <p>• <strong>Gói Vertex / Studio PAY-AS-YOU-GO:</strong> Đặt <strong>2 - 3 Luồng</strong> để dịch song song nhiều chương trong Lab Dịch (Dịch toàn bộ / Dịch chương đã chọn).</p>
                 <p>• <strong>Chương 15–30 nghìn chữ:</strong> Cùng cài đặt này còn cho phép dịch <strong>tối đa 3 đoạn trong cùng một chương</strong> song song (DeepSeek, GPT, Claude, Qwen…). Giữ <strong>1 luồng</strong> nếu dùng Gemini free hoặc ưu tiên đồng nhất tên/xưng hô hơn tốc độ.</p>
+              </div>
+
+              <div className="space-y-2 bg-app-surface-muted/70 border border-app-border rounded-lg p-3 relative">
+                <button
+                  type="button"
+                  onClick={() => setShowStrategyTips((prev) => !prev)}
+                  className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+                  aria-label="Xem preset chiến lược dịch"
+                  title="Xem preset chiến lược dịch"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-app-text block">Preset chiến lược dịch nhanh</span>
+                <p className={`${uiCaption} !text-[10px]`}>
+                  Bấm preset để auto-set luồng, chế độ tuần tự và ngân sách token theo mục tiêu.
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyTranslationStrategyPreset("safe")}
+                    className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px] font-bold`}
+                  >
+                    Tiết kiệm an toàn: 1 luồng, tuần tự tắt, budget 80000, dict/chunk 1600
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyTranslationStrategyPreset("balanced")}
+                    className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px] font-bold`}
+                  >
+                    Cân bằng: 2 luồng, tuần tự tắt, budget 100000, dict/chunk 2600
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyTranslationStrategyPreset("quality")}
+                    className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px] font-bold`}
+                  >
+                    Ưu tiên chất lượng: 1 luồng, tuần tự bật, budget 140000, dict/chunk 3400
+                  </button>
+                </div>
+                {showStrategyTips && (
+                  <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-[10px] leading-relaxed text-app-text space-y-1">
+                    <p>
+                      <strong>Mẹo:</strong> Dịch hàng loạt nên dùng preset Cân bằng. Chương khó tên/xưng hô, chuyển sang
+                      preset Ưu tiên chất lượng trước khi bấm Dịch chương.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 bg-app-surface-muted/70 border border-app-border rounded-lg p-3 relative">
+                <button
+                  type="button"
+                  onClick={() => setShowBudgetTips((prev) => !prev)}
+                  className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+                  aria-label="Xem gợi ý preset token"
+                  title="Xem gợi ý preset token"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-app-text block">Cảnh báo ngân sách token/chương</span>
+                    <p className={`${uiCaption} !text-[10px] mt-1`}>
+                      Bật để app ước tính token trước khi chạy, nếu vượt ngưỡng sẽ yêu cầu xác nhận lại (áp dụng cho mọi model AI).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.translationBudgetGuardEnabled !== false}
+                    onClick={() =>
+                      onUpdateSetting?.(
+                        "translationBudgetGuardEnabled",
+                        settings.translationBudgetGuardEnabled === false
+                      )
+                    }
+                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                      settings.translationBudgetGuardEnabled === false ? "bg-app-border" : "bg-app-accent"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                        settings.translationBudgetGuardEnabled === false ? "translate-x-0" : "translate-x-5"
+                      }`}
+                    />
+                  </button>
+                </div>
+                {showBudgetTips && (
+                  <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-[10.5px] leading-relaxed text-app-text space-y-1.5">
+                    <span className="font-bold text-sky-600 dark:text-sky-400">Gợi ý preset nhanh</span>
+                    <div className="grid grid-cols-1 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => applyTokenPreset(80000, 1600)}
+                        className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px]`}
+                      >
+                        1) Tiết kiệm token tối đa: Dict/chunk 1400-1800, budget/chương 70000-90000
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyTokenPreset(100000, 2600)}
+                        className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px]`}
+                      >
+                        2) Cân bằng: Dict/chunk 2200-2800, budget/chương 90000-120000
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyTokenPreset(140000, 3400)}
+                        className={`${uiBtnGhost} !justify-start !min-h-10 !px-3 !py-2 !text-[10.5px]`}
+                      >
+                        3) Ưu tiên chất lượng thuật ngữ: Dict/chunk 3000-3800, budget/chương 120000-160000
+                      </button>
+                    </div>
+                    <p className={`${uiCaption} !text-[10px]`}>
+                      Bấm một preset để tự điền nhanh 2 ô cấu hình ngay bên dưới.
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <span className={uiFieldLabel}>Ngưỡng cảnh báo (token/chương)</span>
+                  <input
+                    type="number"
+                    min={10000}
+                    step={5000}
+                    value={settings.translationBudgetPerChapter ?? 120000}
+                    onChange={(e) =>
+                      onUpdateSetting?.(
+                        "translationBudgetPerChapter",
+                        Math.max(10000, Number.parseInt(e.target.value || "0", 10) || 120000)
+                      )
+                    }
+                    className={`${uiInput} !min-h-11 rounded-xl !text-xs font-bold`}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <span className={uiFieldLabel}>Trần ký tự thuật ngữ cho mỗi đoạn (Dict/chunk)</span>
+                  <input
+                    type="number"
+                    min={800}
+                    step={100}
+                    value={settings.translationChunkDictMaxChars ?? 2600}
+                    onChange={(e) =>
+                      onUpdateSetting?.(
+                        "translationChunkDictMaxChars",
+                        Math.max(800, Number.parseInt(e.target.value || "0", 10) || 2600)
+                      )
+                    }
+                    className={`${uiInput} !min-h-11 rounded-xl !text-xs font-bold`}
+                  />
+                  <p className={`${uiCaption} !text-[10px]`}>
+                    Mức thấp giúp giảm token nhiều hơn; mức cao giữ nhiều thuật ngữ hơn trong mỗi đoạn.
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-3 bg-app-surface-muted/80 border border-app-border rounded-lg px-3 py-3">

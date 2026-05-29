@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  HelpCircle,
   ChevronRight,
   ChevronLeft,
   GraduationCap,
@@ -143,6 +144,9 @@ const DEFAULT_SETTINGS: TranslationSettings = {
   readerAutoTranslateNextEnabled: false,
   readerAutoTranslateNextDelaySec: 30,
   translationSequentialChunks: false,
+  translationChunkDictMaxChars: 2600,
+  translationBudgetGuardEnabled: true,
+  translationBudgetPerChapter: 100000,
 };
 
 export default function App() {
@@ -164,6 +168,7 @@ export default function App() {
   const [currentTranslatingIndex, setCurrentTranslatingIndex] = useState(-1);
   const [batchProgress, setBatchProgress] = useState<{ completed: number; total: number } | null>(null);
   const [batchErrors, setBatchErrors] = useState<string | null>(null);
+  const [showBatchTips, setShowBatchTips] = useState(false);
 
   // States for selected chapters range and manual checkboxes
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
@@ -384,6 +389,51 @@ export default function App() {
     });
   };
 
+  const buildBudgetSummaryText = useCallback(
+    (opts: {
+      chapterTitle: string;
+      estimatedTotalTokens: number;
+      chunkCount: number;
+      budget: number;
+      warnings: string[];
+    }): string => {
+      const { chapterTitle, estimatedTotalTokens, chunkCount, budget, warnings } = opts;
+      const over = estimatedTotalTokens - budget;
+      const warningText = warnings.length
+        ? `\n\nGợi ý tối ưu:\n${warnings.map((w) => `• ${w}`).join("\n")}`
+        : "";
+      return (
+        `Chương "${chapterTitle}" được ước tính khoảng ${estimatedTotalTokens.toLocaleString("vi-VN")} token ` +
+        `(${chunkCount} đoạn), vượt ngưỡng ${budget.toLocaleString("vi-VN")} token/chương khoảng ${over.toLocaleString("vi-VN")} token.\n` +
+        `Bạn có muốn tiếp tục dịch không?${warningText}`
+      );
+    },
+    []
+  );
+
+  const resolveChapterBudgetEstimate = useCallback(
+    async (chapter: Chapter, dictContext: string) => {
+      const { estimateChapterTokenBudget } = await loadChapterTranslationEngine();
+      return estimateChapterTokenBudget({
+        sourceText: chapter.sourceText,
+        chapterTitle: chapter.title,
+        model: settings.selectedModel,
+        prompt1: settings.prompt1,
+        prompt2: settings.prompt2,
+        dictContext,
+        settings,
+      });
+    },
+    [settings]
+  );
+
+  const shouldWarnTokenBudget = useCallback(() => {
+    if (!settings.translationBudgetGuardEnabled) return false;
+    const budget = Number(settings.translationBudgetPerChapter ?? 0);
+    return Number.isFinite(budget) && budget > 0;
+  }, [settings.translationBudgetGuardEnabled, settings.translationBudgetPerChapter]);
+
+
   const runBatchChapterTranslation = async (tasks: BatchChapterTask[]) => {
     if (!activeNovel || tasks.length === 0) {
       return { succeeded: 0, failed: 0, failures: [] as { title: string; message: string }[] };
@@ -488,34 +538,72 @@ export default function App() {
       .filter((t) => selectedChapterIds.includes(t.chapter.id));
 
     const threadCount = clampThreadCount(settings.maxThreads, 5);
-    setIsTranslatingFullNovel(true);
-    setBatchErrors(null);
+    const executeBatch = async () => {
+      setIsTranslatingFullNovel(true);
+      setBatchErrors(null);
 
-    try {
-      const { succeeded, failed, failures } = await runBatchChapterTranslation(tasks);
+      try {
+        const { succeeded, failed, failures } = await runBatchChapterTranslation(tasks);
 
-      if (failed > 0) {
-        const summary = formatBatchResultMessage("chương đã chọn", succeeded, tasks.length, failures);
-        setBatchErrors(summary);
-        triggerAlert(
-          failed === tasks.length ? "Lỗi dịch cụm chương" : "Biên dịch một phần",
-          summary
-        );
-      } else {
-        triggerAlert(
-          "Biên dịch cụm thành công",
-          `Đã dịch ${succeeded} chương (${threadCount} luồng song song).`
-        );
+        if (failed > 0) {
+          const summary = formatBatchResultMessage("chương đã chọn", succeeded, tasks.length, failures);
+          setBatchErrors(summary);
+          triggerAlert(
+            failed === tasks.length ? "Lỗi dịch cụm chương" : "Biên dịch một phần",
+            summary
+          );
+        } else {
+          triggerAlert(
+            "Biên dịch cụm thành công",
+            `Đã dịch ${succeeded} chương (${threadCount} luồng song song).`
+          );
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setBatchErrors(message);
+        triggerAlert("Lỗi dịch cụm chương", message);
+      } finally {
+        setIsTranslatingFullNovel(false);
+        setCurrentTranslatingIndex(-1);
+        setBatchProgress(null);
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setBatchErrors(message);
-      triggerAlert("Lỗi dịch cụm chương", message);
-    } finally {
-      setIsTranslatingFullNovel(false);
-      setCurrentTranslatingIndex(-1);
-      setBatchProgress(null);
+    };
+
+    if (shouldWarnTokenBudget()) {
+      try {
+        const budget = Number(settings.translationBudgetPerChapter ?? 0);
+        const dictContext = getDictContextForActiveNovel();
+        const estimates = await Promise.all(
+          tasks.map((task) => resolveChapterBudgetEstimate(task.chapter, dictContext))
+        );
+        const overItems = estimates
+          .map((estimate, index) => ({ estimate, chapter: tasks[index].chapter }))
+          .filter((item) => item.estimate.estimatedTotalTokens > budget);
+        if (overItems.length > 0) {
+          const top = overItems
+            .slice(0, 3)
+            .map(
+              (item) =>
+                `• ${item.chapter.title}: ~${item.estimate.estimatedTotalTokens.toLocaleString("vi-VN")} token (${item.estimate.chunkCount} đoạn)`
+            )
+            .join("\n");
+          const more = overItems.length > 3 ? `\n... và ${overItems.length - 3} chương khác vượt ngưỡng.` : "";
+          triggerConfirm(
+            "Cảnh báo ngân sách token",
+            `Có ${overItems.length}/${tasks.length} chương vượt ngưỡng ${budget.toLocaleString("vi-VN")} token/chương:\n${top}${more}\n\nBạn vẫn muốn tiếp tục dịch hàng loạt?`,
+            () => {
+              void executeBatch();
+            },
+            true
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn("Không ước tính được ngân sách batch:", err);
+      }
     }
+
+    await executeBatch();
   };
 
   // Single chapter translation call handler
@@ -538,7 +626,34 @@ export default function App() {
     }
   };
 
-  const runActiveChapterTranslation = async (activeCh: Chapter) => {
+  const runActiveChapterTranslation = async (activeCh: Chapter, skipBudgetCheck = false) => {
+    if (!skipBudgetCheck && shouldWarnTokenBudget()) {
+      try {
+        const budget = Number(settings.translationBudgetPerChapter ?? 0);
+        const dictContext = getDictContextForActiveNovel();
+        const estimate = await resolveChapterBudgetEstimate(activeCh, dictContext);
+        if (estimate.estimatedTotalTokens > budget) {
+          triggerConfirm(
+            "Cảnh báo ngân sách token",
+            buildBudgetSummaryText({
+              chapterTitle: activeCh.title,
+              estimatedTotalTokens: estimate.estimatedTotalTokens,
+              chunkCount: estimate.chunkCount,
+              budget,
+              warnings: estimate.warnings,
+            }),
+            () => {
+              void runActiveChapterTranslation(activeCh, true);
+            },
+            true
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn("Không ước tính được ngân sách token:", err);
+      }
+    }
+
     setIsTranslatingChapter(true);
     setTranslationError(null);
 
@@ -591,10 +706,27 @@ export default function App() {
     }
 
     const threadCount = clampThreadCount(settings.maxThreads, 5);
+    let budgetSuffix = "";
+    if (shouldWarnTokenBudget()) {
+      try {
+        const budget = Number(settings.translationBudgetPerChapter ?? 0);
+        const dictContext = getDictContextForActiveNovel();
+        const estimates = await Promise.all(
+          uncompleted.map((chapter) => resolveChapterBudgetEstimate(chapter, dictContext))
+        );
+        const overCount = estimates.filter((item) => item.estimatedTotalTokens > budget).length;
+        if (overCount > 0) {
+          budgetSuffix =
+            `\n\nCảnh báo ngân sách: ${overCount}/${uncompleted.length} chương ước tính vượt ${budget.toLocaleString("vi-VN")} token/chương.`;
+        }
+      } catch (err) {
+        console.warn("Không ước tính được ngân sách dịch toàn bộ:", err);
+      }
+    }
 
     triggerConfirm(
       "Xác nhận dịch tự động toàn bộ truyện",
-      `Bạn có chắc chắn muốn biên dịch tự động ${uncompleted.length} chương chưa dịch của "${activeNovel.title}" không?\n\nSẽ chạy tối đa ${threadCount} chương song song (theo Cấu Hình → Số chương dịch song song). Thao tác này có thể tiêu tốn nhiều token AI.`,
+      `Bạn có chắc chắn muốn biên dịch tự động ${uncompleted.length} chương chưa dịch của "${activeNovel.title}" không?\n\nSẽ chạy tối đa ${threadCount} chương song song (theo Cấu Hình → Số chương dịch song song). Thao tác này có thể tiêu tốn nhiều token AI.${budgetSuffix}`,
       async () => {
         const tasks: BatchChapterTask[] = activeNovel.chapters
           .map((chapter, chapterIndex) => ({ chapter, chapterIndex }))
@@ -1044,6 +1176,21 @@ export default function App() {
     };
     setSettings(updatedSettings);
     await saveValue("settings", updatedSettings);
+  };
+
+  const applyBatchStrategyPreset = (mode: "safe" | "balanced" | "fast") => {
+    if (mode === "safe") {
+      void handleUpdateSetting("maxThreads", 1);
+      void handleUpdateSetting("translationSequentialChunks", false);
+      return;
+    }
+    if (mode === "balanced") {
+      void handleUpdateSetting("maxThreads", 2);
+      void handleUpdateSetting("translationSequentialChunks", false);
+      return;
+    }
+    void handleUpdateSetting("maxThreads", 3);
+    void handleUpdateSetting("translationSequentialChunks", false);
   };
 
   const handleUpdateReaderSettings = async (newSettings: TranslationSettings) => {
@@ -1574,7 +1721,16 @@ export default function App() {
                   </div>
 
                   {/* Novel sequential batch translation controls */}
-                  <div className="mb-3 shrink-0 space-y-2">
+                  <div className="mb-3 shrink-0 space-y-2 relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowBatchTips((prev) => !prev)}
+                      className="absolute top-0 right-0 inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+                      title="Mẹo dịch hàng loạt"
+                      aria-label="Mẹo dịch hàng loạt"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={handleTranslateFullNovel}
@@ -1606,6 +1762,34 @@ export default function App() {
                         ? `Đang dịch ${batchProgress.completed}/${batchProgress.total} (${clampThreadCount(settings.maxThreads, 5)} luồng)...`
                         : `Dịch ${selectedChapterIds.length} chương đã chọn`}
                     </button>
+                    {showBatchTips && (
+                      <div className="rounded-lg border border-app-accent/35 bg-app-accent/5 p-2.5 text-[10px] leading-relaxed space-y-1.5">
+                        <span className="font-bold text-app-accent block">Preset nhanh dịch hàng loạt</span>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => applyBatchStrategyPreset("safe")}
+                            className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                          >
+                            An toàn token: 1 luồng (ổn định, ít retry)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyBatchStrategyPreset("balanced")}
+                            className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                          >
+                            Cân bằng: 2 luồng (khuyên dùng mặc định)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyBatchStrategyPreset("fast")}
+                            className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                          >
+                            Nhanh: 3 luồng (chỉ khi mạng/API ổn định)
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {batchErrors && (
                       <TranslationErrorPanel title="Lỗi dịch hàng loạt" message={batchErrors} />
                     )}

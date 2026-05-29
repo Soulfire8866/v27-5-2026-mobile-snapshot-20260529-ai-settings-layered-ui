@@ -1508,9 +1508,6 @@ export default function VFSManager({
             </div>
             <div className="min-w-0">
               <h2 className={uiTitle}>Sao lưu và khôi phục</h2>
-              <p className={`${uiCaption} mt-1`}>
-                Bốn cách làm việc: <strong>snapshot trong máy</strong>, <strong>data dịch (khuyến nghị)</strong>, <strong>ZIP đầy đủ</strong>, <strong>nạp ZIP</strong>. Data dịch không gồm cấu hình — an toàn sau cài lại app.
-              </p>
             </div>
           </div>
           {isFileEditorMode ? (
@@ -1538,6 +1535,9 @@ export default function VFSManager({
             </button>
           )}
         </div>
+        <p className={`${uiCaption} mt-2`}>
+          Bốn cách làm việc: <strong>snapshot trong máy</strong>, <strong>data dịch (khuyến nghị)</strong>, <strong>ZIP đầy đủ</strong>, <strong>nạp ZIP</strong>. Data dịch không gồm cấu hình — an toàn sau cài lại app.
+        </p>
       </div>
 
       {newBackupAlert && (
@@ -1775,17 +1775,6 @@ export default function VFSManager({
       ) : (
         <div className={`${uiPanel} md:p-5`}>
           <div className="flex flex-col gap-4">
-            <p className={uiLabel}>Bạn muốn làm gì?</p>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("fileEditor")}
-              className={`${uiBtnSecondary} w-fit h-9 px-3 text-[11px] font-bold`}
-            >
-              <FolderTree className="w-4 h-4" />
-              Mở Xem & Sửa Từng File
-            </button>
-
             <div className={`${uiCard} border-2 border-app-accent/30 bg-app-accent/5 p-4 flex flex-col gap-3`}>
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-app-accent text-white text-xs font-semibold flex items-center justify-center shrink-0">1</span>

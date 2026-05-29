@@ -8,6 +8,7 @@
  * Chạy: npx tsx scripts/qa-user-scenarios.mjs
  */
 
+import "./qa-node-polyfills.mjs";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";

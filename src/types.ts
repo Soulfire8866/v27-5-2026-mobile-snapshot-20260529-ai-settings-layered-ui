@@ -100,4 +100,10 @@ export interface TranslationSettings {
    * Đồng nhất tên/xưng hô hơn; chậm hơn song song. Mặc định tắt.
    */
   translationSequentialChunks?: boolean;
+  /** Trần ký tự DictContext gửi cho mỗi đoạn khi dịch chunked */
+  translationChunkDictMaxChars?: number;
+  /** Bật cảnh báo ngân sách token trước khi chạy dịch */
+  translationBudgetGuardEnabled?: boolean;
+  /** Ngưỡng token ước tính/chương để bật cảnh báo xác nhận */
+  translationBudgetPerChapter?: number;
 }

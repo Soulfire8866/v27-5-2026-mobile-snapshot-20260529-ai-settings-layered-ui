@@ -18,7 +18,7 @@ import {
   formatLineMismatchWarning,
   parseCompareTranslationSave,
   type ChapterTranslationResult,
-} from "../utils/chapterTranslationEngine";
+} from "../utils/chapterCompareBridge";
 import {
   findNameInconsistenciesInChapter,
   replaceAllExact,

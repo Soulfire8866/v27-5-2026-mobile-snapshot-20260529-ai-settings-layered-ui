@@ -1,5 +1,5 @@
 import { Chapter, Novel, TranslationSettings } from "../types";
-import { translateChapter, type ChapterTranslationResult } from "./chapterTranslationEngine";
+import type { ChapterTranslationResult } from "./chapterTranslationEngine";
 
 export const READER_AUTO_TRANSLATE_MIN_DELAY_SEC = 10;
 export const READER_AUTO_TRANSLATE_DEFAULT_DELAY_SEC = 30;
@@ -91,6 +91,7 @@ export async function runAutoTranslateNextChapter(
   inFlightKeys.add(tgtKey);
 
   try {
+    const { translateChapter } = await import("./chapterTranslationEngine");
     const result = await translateChapter({
       sourceText: nextChapter.sourceText,
       chapterTitle: nextChapter.title,

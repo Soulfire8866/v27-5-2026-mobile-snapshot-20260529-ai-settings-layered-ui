@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { 
@@ -21,7 +21,8 @@ import {
   X,
   FileText,
   ChevronDown,
-  List
+  List,
+  HelpCircle,
 } from "lucide-react";
 import { Chapter, Novel, TranslationSettings, DictItem, PronounMapping } from "../types";
 import { pinyin } from "pinyin-pro";
@@ -561,6 +562,7 @@ export default function ReaderView({
 
   const [sequentialArmed, setSequentialArmed] = useState(false);
   const [autoTranslateHint, setAutoTranslateHint] = useState<string | null>(null);
+  const [showAutoTranslateTips, setShowAutoTranslateTips] = useState(false);
   const [delayInputDraft, setDelayInputDraft] = useState<string>(() =>
     String(settings.readerAutoTranslateNextDelaySec ?? READER_AUTO_TRANSLATE_DEFAULT_DELAY_SEC)
   );
@@ -574,6 +576,30 @@ export default function ReaderView({
       String(settings.readerAutoTranslateNextDelaySec ?? READER_AUTO_TRANSLATE_DEFAULT_DELAY_SEC)
     );
   }, [settings.readerAutoTranslateNextDelaySec]);
+
+  const applyReaderAutoTranslatePreset = (mode: "saving" | "balanced" | "continuous") => {
+    if (mode === "saving") {
+      onUpdateSettings({
+        ...settings,
+        readerAutoTranslateNextEnabled: false,
+        readerAutoTranslateNextDelaySec: 60,
+      });
+      return;
+    }
+    if (mode === "balanced") {
+      onUpdateSettings({
+        ...settings,
+        readerAutoTranslateNextEnabled: true,
+        readerAutoTranslateNextDelaySec: 45,
+      });
+      return;
+    }
+    onUpdateSettings({
+      ...settings,
+      readerAutoTranslateNextEnabled: true,
+      readerAutoTranslateNextDelaySec: 25,
+    });
+  };
 
   useEffect(() => {
     resetReaderAutoTranslateSession();
@@ -2774,7 +2800,16 @@ export default function ReaderView({
             </div>
 
             {/* Tự dịch chương kế (Lab) — phương án A */}
-            <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+            <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 relative">
+              <button
+                type="button"
+                onClick={() => setShowAutoTranslateTips((prev) => !prev)}
+                className="absolute top-2 right-0 inline-flex items-center justify-center w-7 h-7 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-300"
+                title="Mẹo preset tự dịch chương kế"
+                aria-label="Mẹo preset tự dịch chương kế"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400 leading-snug">
                   {rs.settings.autoTranslateLabel}
@@ -2805,6 +2840,36 @@ export default function ReaderView({
               <p className="text-[9px] text-zinc-400 dark:text-zinc-500 leading-snug">
                 {rs.settings.autoTranslateHint}
               </p>
+              {showAutoTranslateTips && (
+                <div className="rounded-lg border border-amber-500/35 bg-amber-500/5 p-2.5 space-y-1.5">
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+                    Preset gợi ý nhanh
+                  </span>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyReaderAutoTranslatePreset("saving")}
+                      className="h-8 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold text-left"
+                    >
+                      Tiết kiệm token: tắt tự dịch chương kế
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyReaderAutoTranslatePreset("balanced")}
+                      className="h-8 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold text-left"
+                    >
+                      Cân bằng: bật tự dịch, delay 45 giây
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyReaderAutoTranslatePreset("continuous")}
+                      className="h-8 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold text-left"
+                    >
+                      Liền mạch: bật tự dịch, delay 25 giây
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="reader-auto-translate-delay"

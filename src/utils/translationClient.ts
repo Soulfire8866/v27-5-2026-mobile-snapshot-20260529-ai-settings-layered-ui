@@ -1,5 +1,6 @@
 import { TranslationSettings } from "../types";
 import { DEFAULT_MODEL_ID, resolveSelectedModel } from "./aiModels";
+import { normalizeDictContextForPrompt } from "./dictContextBuilder";
 import {
   orderAttemptsByQuota,
   recordApiRateLimit,
@@ -199,6 +200,16 @@ export const formatUserTranslationPrompts = (prompt1?: string, prompt2?: string)
   return parts.join("\n\n");
 };
 
+const normalizeSystemInstructionText = (text: string): string =>
+  text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
 /**
  * System prompt Lab Dịch:
  * - Luôn: core kỹ thuật + từ điển (nếu có).
@@ -211,12 +222,15 @@ export const buildSystemInstruction = (prompt1?: string, prompt2?: string, dictC
   const guidance = hasUser
     ? formatUserTranslationPrompts(prompt1, prompt2)
     : BUILTIN_TRANSLATION_STYLE;
+  const normalizedDict = normalizeDictContextForPrompt(dictContext);
 
-  const dictBlock = dictContext?.trim()
-    ? `\n\nDANH MỤC THUẬT NGỮ BẮT BUỘC ÁP DỤNG:\n${dictContext.trim()}`
+  const dictBlock = normalizedDict
+    ? `\n\nDANH MỤC THUẬT NGỮ BẮT BUỘC ÁP DỤNG:\n${normalizedDict}`
     : "";
 
-  return `${technical}\n\n${guidance}\n\n${BUILTIN_LAB_OUTPUT_RULE}${dictBlock}`;
+  return normalizeSystemInstructionText(
+    `${technical}\n\n${guidance}\n\n${BUILTIN_LAB_OUTPUT_RULE}${dictBlock}`
+  );
 };
 
 /** Tách nhiều API key trong một ô (phân cách bằng dấu phẩy) */
@@ -794,7 +808,10 @@ export const translateText = async (params: TranslateParams, settings: Translati
   const selectModel = resolveSelectedModel(params.model || settings.selectedModel);
   const activeTemp =
     typeof params.temperature === "number" ? params.temperature : settings.temperature ?? 0.3;
-  const cacheKey = `${selectModel}_${activeTemp}_${params.prompt1}_${params.prompt2}_${params.dictContext}_${text.trim().substring(0, 100)}`;
+  const normalizedPrompt1 = normalizePromptForApi(params.prompt1);
+  const normalizedPrompt2 = normalizePromptForApi(params.prompt2);
+  const normalizedDict = normalizeDictContextForPrompt(params.dictContext);
+  const cacheKey = `${selectModel}_${activeTemp}_${normalizedPrompt1}_${normalizedPrompt2}_${normalizedDict}_${text.trim().substring(0, 100)}`;
   const skipChapterCache =
     text.length > 400 || text.includes("Văn bản tiếng Trung bên dưới có đúng");
   if (!skipChapterCache && clientTranslateCache.has(cacheKey)) {

@@ -14,6 +14,7 @@ import {
   X,
   FileSpreadsheet,
   RefreshCw,
+  HelpCircle,
 } from "lucide-react";
 import { DictItem, Novel, PronounMapping } from "../types";
 import {
@@ -316,6 +317,31 @@ export default function DictManager({
   const [scanResults, setScanResults] = useState<ExtractedWord[]>([]);
   const [isScanPopupOpen, setIsScanPopupOpen] = useState(false);
   const [isScanRunning, setIsScanRunning] = useState(false);
+  const [showRefTips, setShowRefTips] = useState(false);
+  const [showScopeTips, setShowScopeTips] = useState(false);
+
+  const applyRefScanPreset = (mode: "recommended" | "blacklist" | "manual") => {
+    if (Object.keys(refDict).length === 0) return;
+    if (mode === "recommended") {
+      setUseRefDictForLookup(true);
+      setExcludeRefWords(false);
+      return;
+    }
+    if (mode === "blacklist") {
+      setUseRefDictForLookup(true);
+      setExcludeRefWords(true);
+      return;
+    }
+    setUseRefDictForLookup(false);
+    setExcludeRefWords(false);
+  };
+
+  const refPresetLabel =
+    useRefDictForLookup && !excludeRefWords
+      ? "Khuyên dùng"
+      : useRefDictForLookup && excludeRefWords
+        ? "Lọc mạnh"
+        : "Soát tay";
 
   React.useEffect(() => {
     if (activeNovel && activeNovel.chapters.length > 0) {
@@ -735,6 +761,21 @@ export default function DictManager({
     await downloadDictTxtFile(fileName, content);
   };
 
+  const applyDictOpsPreset = (mode: "global" | "novel_normalize" | "novel_safe") => {
+    if (mode === "global") {
+      setFilterSubset("chung");
+      return;
+    }
+    if (!activeNovelId) {
+      alert("Vui lòng chọn tác phẩm trong Thư viện trước khi dùng preset cho từ điển riêng.");
+      return;
+    }
+    setFilterSubset("riêng");
+    if (mode === "novel_normalize") {
+      setDictScope("riêng");
+    }
+  };
+
   const handleConfirmImportApply = async () => {
     if (!activeNovelId || !activeNovel) return;
     const selected = importPreviewRows.filter((r) => r.selected);
@@ -1012,10 +1053,67 @@ export default function DictManager({
                 </div>
 
                 {/* Reference dictionary — tra cứu PA-3 vs loại trừ quét (tách riêng) */}
-                <div className={`${uiCardInset} p-3 space-y-2.5`}>
+                <div className={`${uiCardInset} p-3 space-y-2.5 relative`}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRefTips((prev) => !prev)}
+                    className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+                    aria-label="Xem mẹo dùng Chức năng 1 và 2"
+                    title="Xem mẹo dùng Chức năng 1 và 2"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
                   <span className={`${uiLabel} !text-[10px] leading-none`}>
                     File đối chiếu &amp; lọc quét:
                   </span>
+                  {showRefTips && (
+                    <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-[10.5px] leading-relaxed text-app-text space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sky-600 dark:text-sky-400">Mẹo thao tác nhanh</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                          Preset hiện tại: {refPresetLabel}
+                        </span>
+                      </div>
+                      <p>
+                        <strong>Chức năng 1</strong> - <em>Dùng file để điền «Tên trong bản dịch» (PA-3)</em>: nên bật
+                        mặc định sau khi nạp file để gợi ý tên riêng nhanh và ổn định.
+                      </p>
+                      <p>
+                        <strong>Chức năng 2</strong> - <em>Ẩn cụm đã có trong file khỏi danh sách quét</em>: chỉ bật khi
+                        bạn muốn file đóng vai trò blacklist để tập trung tìm tên mới.
+                      </p>
+                      <p className={`${uiCaption} !text-[10px]`}>
+                        Công thức tối ưu thường dùng: bật Chức năng 1, tắt Chức năng 2. Sau khi danh sách đã gọn mới cân
+                        nhắc bật Chức năng 2.
+                      </p>
+                      <div className="grid grid-cols-1 gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => applyRefScanPreset("recommended")}
+                          disabled={Object.keys(refDict).length === 0}
+                          className={`${uiBtnGhost} !justify-start !min-h-9 !px-3 !py-1.5 !text-[10px] font-bold disabled:opacity-50`}
+                        >
+                          Preset khuyên dùng: bật Chức năng 1, tắt Chức năng 2
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyRefScanPreset("blacklist")}
+                          disabled={Object.keys(refDict).length === 0}
+                          className={`${uiBtnGhost} !justify-start !min-h-9 !px-3 !py-1.5 !text-[10px] font-bold disabled:opacity-50`}
+                        >
+                          Preset lọc mạnh: bật cả Chức năng 1 + 2
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyRefScanPreset("manual")}
+                          disabled={Object.keys(refDict).length === 0}
+                          className={`${uiBtnGhost} !justify-start !min-h-9 !px-3 !py-1.5 !text-[10px] font-bold disabled:opacity-50`}
+                        >
+                          Preset soát tay: tắt cả Chức năng 1 + 2
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="pt-0.5">
                     <label className={`${uiBtnGhost} w-full !min-h-8.5 border-dashed hover:border-app-accent hover:text-app-accent !text-[10px] font-bold cursor-pointer`}>
@@ -1111,7 +1209,45 @@ export default function DictManager({
           </div>
 
           {/* Scope selection controls tabs */}
-          <div className={`${uiSegmentedTrack} gap-1.5 shrink-0 select-none`}>
+          <div className="shrink-0 space-y-2 relative">
+            <button
+              type="button"
+              onClick={() => setShowScopeTips((prev) => !prev)}
+              className="absolute top-0 right-0 inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+              aria-label="Mẹo thao tác tab Chung/Riêng"
+              title="Mẹo thao tác tab Chung/Riêng"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            {showScopeTips && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-[10px] leading-relaxed text-app-text space-y-1.5">
+                <span className="font-bold text-sky-600 dark:text-sky-400 block">Preset thao tác nhanh</span>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => applyDictOpsPreset("global")}
+                    className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                  >
+                    Chung nhanh: chuyển sang tab 🌐 Chung để import/export từ dùng toàn cục
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDictOpsPreset("novel_normalize")}
+                    className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                  >
+                    Riêng + chuẩn hóa: chuyển tab 📌 Riêng để import rồi bấm «Chuẩn hóa bản dịch đã có»
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyDictOpsPreset("novel_safe")}
+                    className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                  >
+                    Riêng an toàn: chuyển tab 📌 Riêng, chỉ import/export (chưa chuẩn hóa)
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className={`${uiSegmentedTrack} gap-1.5 select-none`}>
             <button
               type="button"
               onClick={() => setFilterSubset("all")}
@@ -1142,6 +1278,7 @@ export default function DictManager({
                 📌 Riêng ({dictItems.filter(i => i.novelId === activeNovelId).length})
               </button>
             )}
+            </div>
           </div>
 
           <input

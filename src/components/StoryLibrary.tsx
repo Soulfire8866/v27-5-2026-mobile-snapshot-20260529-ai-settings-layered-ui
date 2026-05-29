@@ -20,7 +20,8 @@ import {
   Grid,
   List,
   FileText,
-  Percent
+  Percent,
+  HelpCircle,
 } from "lucide-react";
 import { Novel, Chapter } from "../types";
 import type { ChapterRuleState } from "../utils/chapterRulesEngine";
@@ -101,6 +102,7 @@ export default function StoryLibrary({
   const [exportFormat, setExportFormat] = useState<"txt" | "docx" | "epub" | "pdf">("txt");
   const [isExportingTranslation, setIsExportingTranslation] = useState(false);
   const [isImportingTranslation, setIsImportingTranslation] = useState(false);
+  const [showExportTips, setShowExportTips] = useState(false);
   const [toolsFeedback, setToolsFeedback] = useState<{
     tone: "info" | "success" | "warning" | "danger";
     message: string;
@@ -138,6 +140,25 @@ export default function StoryLibrary({
       document.body.style.overflow = prev;
     };
   }, [showToolsModal]);
+
+  const applyExportPreset = (mode: "safe_txt" | "balanced_epub" | "quick_pdf") => {
+    if (!targetExportNovel) return;
+    if (mode === "safe_txt") {
+      setExportFormat("txt");
+      setExportStartIdx(1);
+      setExportEndIdx(Math.min(targetExportNovel.chapters.length, 120));
+      return;
+    }
+    if (mode === "balanced_epub") {
+      setExportFormat("epub");
+      setExportStartIdx(1);
+      setExportEndIdx(Math.min(targetExportNovel.chapters.length, 80));
+      return;
+    }
+    setExportFormat("pdf");
+    setExportStartIdx(1);
+    setExportEndIdx(Math.min(targetExportNovel.chapters.length, 30));
+  };
 
   useEffect(() => {
     if (!showToolsModal) {
@@ -699,9 +720,51 @@ export default function StoryLibrary({
 
               {/* 2. Ebook exporter (Conditional rendering when books are present) */}
               <div className={`${uiCardInset} p-4 space-y-4`}>
-                <span className={`${uiLabel} text-[10px] block`}>
-                  (2) Kết xuất sách ra ebook để đọc:
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`${uiLabel} text-[10px] block`}>
+                    (2) Kết xuất sách ra ebook để đọc:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowExportTips((prev) => !prev)}
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-app-border bg-app-surface hover:bg-app-surface-muted text-app-text-muted"
+                    title="Mẹo preset xuất ebook"
+                    aria-label="Mẹo preset xuất ebook"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
+                </div>
+                {showExportTips && (
+                  <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-[10px] leading-relaxed space-y-1.5">
+                    <span className="font-bold text-sky-600 dark:text-sky-400 block">Preset xuất nhanh</span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => applyExportPreset("safe_txt")}
+                        className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                      >
+                        TXT an toàn: chương 1-120 (giảm rủi ro file quá lớn)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyExportPreset("balanced_epub")}
+                        className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                      >
+                        EPUB cân bằng: chương 1-80 (đề xuất mobile)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyExportPreset("quick_pdf")}
+                        className={`${uiBtnGhost} !justify-start !min-h-8 !px-2.5 !py-1 !text-[10px] font-bold`}
+                      >
+                        PDF xem nhanh: chương 1-30
+                      </button>
+                    </div>
+                    <p className={uiCaption}>
+                      Mẹo: bản dài nên chia tập nhỏ rồi xuất nhiều lần để tránh lỗi bộ nhớ trên điện thoại.
+                    </p>
+                  </div>
+                )}
 
                 {novels.length === 0 ? (
                   <p className={`${uiCaption} italic select-none`}>

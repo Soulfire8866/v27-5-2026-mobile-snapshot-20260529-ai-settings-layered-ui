@@ -2,6 +2,7 @@ import type { DictItem, PronounMapping } from "../types";
 
 /** Giới hạn dict gửi kèm mỗi request — tránh phình token (2B). */
 export const MAX_DICT_CONTEXT_CHARS = 12_000;
+export const CHUNK_DICT_CONTEXT_MAX_CHARS = 2_800;
 
 const scoreDictItem = (item: DictItem, novelId?: string): number => {
   let score = 0;
@@ -59,3 +60,96 @@ export function buildDictContextString(opts: {
 
   return lines.join("\n");
 }
+
+const normalizeCjk = (value: string): string => value.trim().replace(/\s+/g, "");
+
+const getDictSourceToken = (line: string): string => {
+  const arrowIndex = line.indexOf("->");
+  if (arrowIndex < 0) return "";
+  return normalizeCjk(line.slice(0, arrowIndex));
+};
+
+const looksLikePronounOrCoreRule = (zh: string): boolean => {
+  if (!zh) return false;
+  if (zh.length <= 2) return true;
+  return /们$/.test(zh) || /位$/.test(zh);
+};
+
+/**
+ * Chuẩn hóa dictContext trước khi ghép vào system prompt:
+ * - trim dòng
+ * - loại dòng trùng tuyệt đối
+ * - giữ nguyên thứ tự để không đảo ưu tiên do người dùng thiết lập.
+ */
+export const normalizeDictContextForPrompt = (dictContext?: string): string => {
+  const raw = dictContext?.trim();
+  if (!raw) return "";
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const normalized = line.trim().replace(/\s+/g, " ");
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out.join("\n");
+};
+
+/**
+ * Chỉ lấy phần dict liên quan trực tiếp đến chunk hiện tại để giảm token:
+ * - luôn giữ nhóm quy tắc ngắn/cốt lõi (đại từ, từ ngắn)
+ * - thêm các mục thật sự xuất hiện trong chunk
+ * - nếu vẫn còn trống thì lấy thêm từ đầu danh sách theo thứ tự ưu tiên có sẵn.
+ */
+export const selectDictContextForChunk = (
+  dictContext: string | undefined,
+  sourceChunk: string,
+  maxChars = CHUNK_DICT_CONTEXT_MAX_CHARS
+): string => {
+  const normalizedDict = normalizeDictContextForPrompt(dictContext);
+  if (!normalizedDict) return "";
+
+  const lines = normalizedDict.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+
+  const sourceNormalized = normalizeCjk(sourceChunk);
+  const pinned: string[] = [];
+  const matched: string[] = [];
+  const fallback: string[] = [];
+
+  for (const line of lines) {
+    const zh = getDictSourceToken(line);
+    if (!zh) continue;
+    if (looksLikePronounOrCoreRule(zh)) {
+      pinned.push(line);
+      continue;
+    }
+    if (sourceNormalized.includes(zh)) {
+      matched.push(line);
+      continue;
+    }
+    fallback.push(line);
+  }
+
+  const selected: string[] = [];
+  let used = 0;
+  const push = (line: string): boolean => {
+    const extra = selected.length === 0 ? line.length : line.length + 1;
+    if (used + extra > maxChars) return false;
+    selected.push(line);
+    used += extra;
+    return true;
+  };
+
+  for (const line of pinned) {
+    if (!push(line)) break;
+  }
+  for (const line of matched) {
+    if (!push(line)) break;
+  }
+  for (const line of fallback) {
+    if (!push(line)) break;
+  }
+
+  return selected.join("\n");
+};

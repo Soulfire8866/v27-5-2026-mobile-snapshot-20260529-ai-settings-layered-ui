@@ -1,6 +1,7 @@
 import { TranslationSettings } from "../types";
 import { clampThreadCount, mapWithConcurrency } from "./concurrency";
 import {
+  buildSystemInstruction,
   isDeepSeekChunkSplitError,
   translateText,
   TranslateParams,
@@ -16,6 +17,10 @@ import {
   buildChunkContinuityPrefix,
   takeTailLines,
 } from "./chunkContinuity";
+import {
+  normalizeDictContextForPrompt,
+  selectDictContextForChunk,
+} from "./dictContextBuilder";
 import { logTranslationTelemetry } from "./translationTelemetry";
 
 /** Chương ngắn/vừa: một request */
@@ -44,6 +49,7 @@ export const DEEPSEEK_FORCE_CHUNK_LINES = 120;
  * Trần thấp hơn maxThreads để giảm burst RPM khi vừa dịch nhiều chương vừa nhiều đoạn.
  */
 export const CHAPTER_CHUNK_MAX_CONCURRENCY = 3;
+export const CHAPTER_RESUME_CACHE_MAX_ENTRIES = 20;
 
 /** Khi API trả rỗng: chia đôi đoạn và gọi lại cùng model (không đổi sang Pro). */
 export const DEEPSEEK_EMPTY_SPLIT_MIN_LINES = 3;
@@ -52,6 +58,90 @@ export const DEEPSEEK_EMPTY_SPLIT_MAX_DEPTH = 6;
 /** Bỏ qua thử 1 shot, vào chia khối ngay */
 export const FORCE_CHUNK_CHARS = 12000;
 export const FORCE_CHUNK_LINES = 250;
+
+const AVG_INPUT_CHARS_PER_TOKEN = 3.5;
+const AVG_OUTPUT_CHARS_PER_TOKEN = 2.0;
+
+type ChunkResumeState = {
+  totalChunks: number;
+  parts: Map<number, string>;
+  updatedAt: number;
+};
+
+const chapterChunkResumeCache = new Map<string, ChunkResumeState>();
+
+const fastHash = (value: string): string => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+};
+
+const buildChunkResumeKey = (
+  sourceText: string,
+  model: string,
+  temperature: number | undefined,
+  prompt1: string | undefined,
+  prompt2: string | undefined,
+  dictContext: string | undefined,
+  chunkLineCount: number
+): string => {
+  const normalizedDict = normalizeDictContextForPrompt(dictContext);
+  return [
+    model,
+    String(temperature ?? ""),
+    fastHash(prompt1 ?? ""),
+    fastHash(prompt2 ?? ""),
+    fastHash(normalizedDict),
+    chunkLineCount,
+    fastHash(sourceText),
+  ].join("::");
+};
+
+const getOrInitChunkResumeState = (
+  key: string,
+  totalChunks: number
+): ChunkResumeState => {
+  const existing = chapterChunkResumeCache.get(key);
+  if (existing && existing.totalChunks === totalChunks) {
+    existing.updatedAt = Date.now();
+    return existing;
+  }
+  const next: ChunkResumeState = {
+    totalChunks,
+    parts: new Map<number, string>(),
+    updatedAt: Date.now(),
+  };
+  chapterChunkResumeCache.set(key, next);
+  while (chapterChunkResumeCache.size > CHAPTER_RESUME_CACHE_MAX_ENTRIES) {
+    const oldestKey = chapterChunkResumeCache.keys().next().value;
+    if (!oldestKey) break;
+    chapterChunkResumeCache.delete(oldestKey);
+  }
+  return next;
+};
+
+const isAdaptiveConcurrencyError = (err: unknown): boolean => {
+  if (isDeepSeekChunkSplitError(err)) return true;
+  if (!(err instanceof Error)) return false;
+  const message = err.message.toLowerCase();
+  return (
+    message.includes("rate limit") ||
+    message.includes("429") ||
+    message.includes("too many requests") ||
+    message.includes("overloaded") ||
+    message.includes("capacity") ||
+    message.includes("throttle") ||
+    message.includes("timeout") ||
+    message.includes("hết thời gian chờ") ||
+    message.includes("failed to fetch") ||
+    message.includes("lỗi mạng") ||
+    message.includes("api trả về rỗng") ||
+    message.includes("resource_exhausted")
+  );
+};
 
 export type ChapterTranslationTier = "single" | "chunked";
 
@@ -81,6 +171,16 @@ export const countChapterLines = (text: string): number => splitChapterLines(tex
 export type ChapterTranslationResult = {
   translatedTitle: string;
   translatedText: string;
+};
+
+export type ChapterTokenBudgetEstimate = {
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedTotalTokens: number;
+  chunkCount: number;
+  dictChars: number;
+  systemChars: number;
+  warnings: string[];
 };
 
 /** Gộp tiêu đề + thân để dịch một request (dòng 1 = tiêu đề). */
@@ -535,16 +635,42 @@ const translateChunked = async (
   const { chunks, ranges } = splitLinesIntoChunksWithCharCap(lines, chunkLineCount, maxChars);
   const sequential = !!settings.translationSequentialChunks;
   const concurrency = sequential ? 1 : resolveChapterChunkConcurrency(base.model, settings);
+  const resumeKey = buildChunkResumeKey(
+    sourceText,
+    base.model,
+    base.temperature,
+    base.prompt1,
+    base.prompt2,
+    base.dictContext,
+    chunkLineCount
+  );
+  const resumeState = getOrInitChunkResumeState(resumeKey, chunks.length);
+  const parts: string[] = new Array(chunks.length).fill("");
+
+  const resolveChunkBase = (chunkText: string) => ({
+    ...base,
+    dictContext: selectDictContextForChunk(
+      base.dictContext,
+      chunkText,
+      settings.translationChunkDictMaxChars
+    ),
+  });
 
   if (sequential && chunks.length > 1) {
-    const parts: string[] = [];
     let prevSourceTail = "";
     let prevTranslatedTail = "";
     for (let i = 0; i < chunks.length; i++) {
+      const resumed = resumeState.parts.get(i);
+      if (resumed) {
+        parts[i] = resumed;
+        prevSourceTail = takeTailLines(chunks[i]);
+        prevTranslatedTail = takeTailLines(resumed);
+        continue;
+      }
       const continuity = buildChunkContinuityPrefix(prevSourceTail, prevTranslatedTail);
       const part = await translateChunkWithValidation(
         chunks[i],
-        base,
+        resolveChunkBase(chunks[i]),
         settings,
         {
           lineCount: ranges[i].lineCount,
@@ -557,33 +683,176 @@ const translateChunked = async (
         0,
         continuity
       );
-      parts.push(part);
+      parts[i] = part;
+      resumeState.parts.set(i, part);
       prevSourceTail = takeTailLines(chunks[i]);
       prevTranslatedTail = takeTailLines(part);
     }
     return parts.join("\n");
   }
 
-  const parts = await mapWithConcurrency(
-    chunks.map((chunk, index) => ({ chunk, index, range: ranges[index] })),
-    concurrency,
-    async ({ chunk, index, range }) =>
-      translateChunkWithValidation(
-        chunk,
-        base,
-        settings,
-        {
-          lineCount: range.lineCount,
-          chunkIndex: index,
-          totalChunks: chunks.length,
-          startLine: range.startLine,
-          endLine: range.endLine,
-        },
-        priority
-      )
-  );
+  let pendingIndexes = chunks
+    .map((_, index) => index)
+    .filter((index) => {
+      const resumed = resumeState.parts.get(index);
+      if (!resumed) return true;
+      parts[index] = resumed;
+      return false;
+    });
+  let activeConcurrency = Math.max(1, concurrency);
+
+  while (pendingIndexes.length > 0) {
+    const passResults = await mapWithConcurrency(
+      pendingIndexes,
+      Math.min(activeConcurrency, pendingIndexes.length),
+      async (index) => {
+        const chunk = chunks[index];
+        const range = ranges[index];
+        try {
+          const part = await translateChunkWithValidation(
+            chunk,
+            resolveChunkBase(chunk),
+            settings,
+            {
+              lineCount: range.lineCount,
+              chunkIndex: index,
+              totalChunks: chunks.length,
+              startLine: range.startLine,
+              endLine: range.endLine,
+            },
+            priority
+          );
+          return { ok: true as const, index, part };
+        } catch (err) {
+          return { ok: false as const, index, err };
+        }
+      }
+    );
+
+    const failed = passResults.filter((item) => !item.ok);
+    for (const item of passResults) {
+      if (!item.ok) continue;
+      parts[item.index] = item.part;
+      resumeState.parts.set(item.index, item.part);
+    }
+    if (failed.length === 0) {
+      break;
+    }
+
+    const adaptive = failed.every((item) => isAdaptiveConcurrencyError(item.err));
+    if (adaptive && activeConcurrency > 1) {
+      const nextConcurrency = activeConcurrency - 1;
+      console.warn(
+        `[translation] Hạ song song đoạn ${activeConcurrency} -> ${nextConcurrency} do lỗi tạm thời (${failed.length} đoạn).`
+      );
+      activeConcurrency = nextConcurrency;
+      pendingIndexes = failed.map((item) => item.index);
+      continue;
+    }
+
+    const hardFailure = failed[0].err;
+    throw hardFailure instanceof Error ? hardFailure : new Error(String(hardFailure));
+  }
 
   return parts.join("\n");
+};
+
+const estimateTokensFromChars = (chars: number, charsPerToken: number): number =>
+  Math.max(1, Math.round(chars / charsPerToken));
+
+export const estimateChapterTokenBudget = (params: {
+  sourceText: string;
+  chapterTitle?: string;
+  model: string;
+  prompt1?: string;
+  prompt2?: string;
+  dictContext?: string;
+  settings: TranslationSettings;
+}): ChapterTokenBudgetEstimate => {
+  const { sourceText, chapterTitle, model, prompt1, prompt2, dictContext, settings } = params;
+  const { combined } = buildChapterSourceWithTitle(chapterTitle, sourceText);
+  const plan = resolveChapterTranslationPlan(combined, model);
+  const normalizedDict = normalizeDictContextForPrompt(dictContext);
+  const systemInstruction = buildSystemInstruction(prompt1, prompt2, normalizedDict);
+  const warnings: string[] = [];
+
+  if (!combined.trim()) {
+    return {
+      estimatedInputTokens: 0,
+      estimatedOutputTokens: 0,
+      estimatedTotalTokens: 0,
+      chunkCount: 0,
+      dictChars: normalizedDict.length,
+      systemChars: systemInstruction.length,
+      warnings,
+    };
+  }
+
+  if (plan.tier === "single") {
+    const inputChars = systemInstruction.length + combined.length;
+    const outputChars = Math.round(combined.length * 1.12);
+    const estimatedInputTokens = estimateTokensFromChars(inputChars, AVG_INPUT_CHARS_PER_TOKEN);
+    const estimatedOutputTokens = estimateTokensFromChars(outputChars, AVG_OUTPUT_CHARS_PER_TOKEN);
+    return {
+      estimatedInputTokens,
+      estimatedOutputTokens,
+      estimatedTotalTokens: estimatedInputTokens + estimatedOutputTokens,
+      chunkCount: 1,
+      dictChars: normalizedDict.length,
+      systemChars: systemInstruction.length,
+      warnings,
+    };
+  }
+
+  const lines = splitChapterLines(combined);
+  const maxChars = model.startsWith("deepseek-") ? CHUNK_MAX_CHARS_DEEPSEEK : null;
+  const { chunks, ranges } = splitLinesIntoChunksWithCharCap(lines, plan.chunkLineCount, maxChars);
+  const sequential = !!settings.translationSequentialChunks;
+
+  let inputChars = 0;
+  let outputChars = 0;
+  let maxDictChars = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const range = ranges[i];
+    const chunkDict = selectDictContextForChunk(
+      normalizedDict,
+      chunk,
+      settings.translationChunkDictMaxChars
+    );
+    const chunkSystem = buildSystemInstruction(prompt1, prompt2, chunkDict);
+    maxDictChars = Math.max(maxDictChars, chunkDict.length);
+    const numbered = buildNumberedSourcePayload(chunk);
+    const prefix = buildNumberedLineUserPrefix({
+      lineCount: numbered.lineCount,
+      chunkIndex: i,
+      totalChunks: chunks.length,
+      startLine: range.startLine,
+      endLine: range.endLine,
+    });
+    const continuityChars = sequential && i > 0 ? 500 : 0;
+    inputChars += chunkSystem.length + prefix.length + numbered.payload.length + continuityChars;
+    outputChars += Math.round(chunk.length * 1.12);
+  }
+
+  if (normalizedDict.length > 3000) {
+    warnings.push("DictContext lớn; nên bật lọc theo chunk để giảm token.");
+  }
+  if (chunks.length >= 10) {
+    warnings.push("Chương dài nhiều chunk; cân nhắc giới hạn ngân sách trước khi chạy.");
+  }
+
+  const estimatedInputTokens = estimateTokensFromChars(inputChars, AVG_INPUT_CHARS_PER_TOKEN);
+  const estimatedOutputTokens = estimateTokensFromChars(outputChars, AVG_OUTPUT_CHARS_PER_TOKEN);
+  return {
+    estimatedInputTokens,
+    estimatedOutputTokens,
+    estimatedTotalTokens: estimatedInputTokens + estimatedOutputTokens,
+    chunkCount: chunks.length,
+    dictChars: maxDictChars,
+    systemChars: systemInstruction.length,
+    warnings,
+  };
 };
 
 /**
