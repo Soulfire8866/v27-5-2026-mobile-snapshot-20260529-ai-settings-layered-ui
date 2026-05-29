@@ -34,6 +34,7 @@ alwaysApply: false
 
 ## UI
 
+- **Mặc định:** không chèn nội dung UI lên status bar; safe-area bắt buộc cho header/modal/Portal. Chỉ đè status bar khi user **chủ động yêu cầu** (xem guide mục 3.2.1).
 - Class Tailwind hợp lệ (`text-sky-600`, `z-[55]`). `option value="history"` không có typo.
 - Theme chủ đạo hiện tại giữ accent xanh (`app-accent`), không tự ý đổi tông chủ đạo.
 - Label system:

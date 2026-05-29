@@ -13,6 +13,7 @@ Khi **sửa, nâng cấp hoặc debug** repo này:
 4. UI tiếng Việt; giải thích cho user bằng tiếng Việt.
 5. Theme chủ đạo hiện tại giữ **accent xanh**; không đổi tông chủ đạo khi chưa được user xác nhận.
 6. Label UI theo chuẩn mới: ưu tiên sentence/title case; chỉ uppercase cho badge/tag ngắn.
+7. **Status bar (mặc định):** UI chức năng **không chèn lên status bar**; dùng safe-area (`app-chrome-safe-top/bottom`, `lab-chrome-safe-top`, …). Chỉ cho phép trùng vùng status bar khi user **chủ động yêu cầu** (màn/vùng cụ thể). Chi tiết: `docs/AI_AGENT_PROJECT_GUIDE.md` mục **3.2.1**.
 
 ## Quy trình khi user nêu vấn đề / đề xuất tính năng
 
@@ -46,4 +47,4 @@ Chi tiết kiến trúc, Lab, quét tên PA-3, Phòng Đọc, build APK: xem gui
  - Đồng bộ cứng `tier ↔ version ↔ selectedModel`; không để UI hiển thị khác model thực chạy.
  - Hành động `Cách 1: Dịch lại toàn bộ` phải có xác nhận 2 lớp: switch ON + nhập cụm `XOA TOAN BO` trước khi thực thi.
  - Banner layer mẹ dùng tiêu đề 1 dòng: `Model AI Dịch Thuật Được Lựa Chọn`.
-- Khi chỉnh visual: ưu tiên sửa qua `src/index.css` token + `src/lib/ui.ts`; hạn chế hardcode class màu rải rác.
+- Khi chỉnh visual: ưu tiên sửa qua `src/index.css` token + `src/lib/ui.ts`; hạn chế hardcode class màu rải rác; **không** để chrome/nút/tiêu đề đè status bar (trừ khi user chủ động cho phép vùng đó).

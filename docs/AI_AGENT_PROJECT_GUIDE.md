@@ -4,7 +4,7 @@
 **Repo hiện tại:** `v27.5.2026 mobile` (thư mục gốc, ví dụ `E:\v27.5.2026 mobile`) — kế thừa codebase từ `mobile_v3` / `v24.5.2026 mobile_v3`.  
 **Mục đích tài liệu:** Ghi nhận nguyên tắc, quyết định đã chốt, kiến trúc và hướng xử lý bắt buộc khi tiếp quản sửa lỗi / nâng cấp / tối ưu.  
 **Ngôn ngữ sản phẩm:** UI và nội dung người dùng chủ yếu **tiếng Việt**.  
-**Cập nhật:** 2026-05-29 (bổ sung chuẩn Visual UI/Label + Library Control Panel + phân tầng Cài Đặt Model AI).
+**Cập nhật:** 2026-05-29 (nguyên tắc mặc định: không chèn UI lên status bar trừ khi user chủ động cho phép).
 
 ---
 
@@ -53,7 +53,18 @@
 - Nút: `min-h-10`, `truncate` cho text dài; tiêu đề chương **luôn `truncate`**.
 - Label: ưu tiên sentence/title case; chỉ dùng uppercase cho badge/tag rất ngắn.
 - **Tương phản:** Chỉ dùng class Tailwind **hợp lệ** (`text-sky-600`, không `text-sky-650`). Overlay modal: `z-[55]` hoặc `z-50`, không `z-55`.
-- **Safe area Android:** `env(safe-area-inset-top)` + tối thiểu 28px; **không** dùng `!pt-0` trên phần tử có class `lab-chrome-safe-top` (sẽ xóa padding và đè status bar).
+
+#### 3.2.1 Status bar — nguyên tắc mặc định (BẮT BUỘC)
+
+Khi thiết kế hoặc chỉnh giao diện **bất kỳ chức năng nào** (tab, header, modal, drawer, overlay Portal, màn full-screen):
+
+1. **Mặc định:** Nội dung tương tác (tiêu đề, nút, icon, text, input) **không được chèn lên / đè lên** vùng **status bar** hệ thống (Android / notch). Chrome ứng dụng phải bắt đầu **dưới** status bar, có khoảng đệm safe-area rõ ràng.
+2. **Cách làm chuẩn:** Dùng class/token safe-area đã có — ví dụ `app-chrome-safe-top`, `app-chrome-safe-bottom`, `lab-chrome-safe-top`, `padding-top: max(env(safe-area-inset-top, 0px), 28px)` trên header cố định. Modal/Portal full-screen: bắt buộc safe-top **và** safe-bottom khi có chrome trên/dưới.
+3. **Cấm tự ý phá safe-area:** Không dùng `!pt-0`, `top: 0` cố định, hoặc bỏ padding safe-top trên phần tử đang mang class safe-area — trừ khi đã có **yêu cầu chủ động** của user (mục 4).
+4. **Ngoại lệ duy nhất:** Chỉ khi **chủ sở hữu dự án chủ động yêu cầu** cho phép **một phần giao diện cụ thể** (đã nêu rõ màn / component / vùng) **trùng vị trí và kích thước** vùng status bar (ví dụ immersive có chủ đích). Agent **không** tự áp dụng edge-to-edge / đè status bar vì “đẹp hơn” hoặc theo mẫu web desktop.
+5. **Kiểm tra:** Sau đổi UI trên Android, smoke trên **máy thật** (notch / status bar khác nhau) — tiêu đề và nút không bị khuất hoặc khó bấm dưới status bar.
+
+**Safe area Android (kỹ thuật):** `env(safe-area-inset-top)` + tối thiểu 28px; **không** dùng `!pt-0` trên phần tử có class `lab-chrome-safe-top` (sẽ xóa padding và đè status bar).
 
 ### 3.3 Sản phẩm dịch
 
@@ -304,6 +315,7 @@ Với `Cách 1`, bắt buộc xác nhận 2 lớp (2C):
 | Nút mở Library Control lệch bố cục | Ép cùng hàng tiêu đề, icon control rõ nghĩa |
 | Back trong Library Control không đồng nhất | Dùng nút `Quay lại` + icon trái, bỏ `X` đơn lẻ |
 | Layer 3/4 AI bị “lơ lửng” hoặc đè status bar | Dùng Portal + `app-chrome-safe-top/bottom` + reset scroll top |
+| UI mới chèn lên status bar (mặc định cấm) | Safe-area + không `!pt-0`; chỉ đè status bar khi user chủ động yêu cầu vùng cụ thể |
 | Dropdown tier/model AI lệch state thật | Đồng bộ cứng tier ↔ version ↔ `selectedModel`, bỏ fallback ngầm gây lệch |
 | Rủi ro bấm nhầm “Dịch lại toàn bộ” | Áp dụng xác nhận 2 lớp (switch + nhập `XOA TOAN BO`) |
 
@@ -344,12 +356,13 @@ npm run android:release   # hoặc script release.ps1
 1. **Đọc file này** + grep vùng liên quan (`nameScanPipeline`, `App.tsx` Lab header, `DictManager`).
 2. **Không** bật lại `excludeRefWords=true` mặc định khi có PA-3.
 3. **Không** thêm `!pt-0` lên `lab-chrome-safe-top`.
-4. Sửa UI: dùng `src/lib/ui.ts`, token `app-*`.
-5. Sửa logic quét tên: cập nhật test trong `scripts/qa-user-scenarios.mjs` nếu đổi hành vi PA-3/5B/6BC.
-6. Giải thích bằng tiếng Việt cho user; diff nhỏ, có ví dụ cụ thể Hán–Việt khi thảo luận tên riêng.
-7. Phân biệt rõ **VP / LAB / HV** khi debug — ba nguồn khác nhau.
-8. Với `SettingsTab` AI: không phá luồng layer 1→2→3→4; giữ single-active branch + safe-area Portal.
-9. Với thao tác phá hủy (`retranslate_all`): luôn giữ xác nhận 2 lớp (switch + phrase).
+4. **Mặc định không chèn UI lên status bar** (mục 3.2.1); chỉ bỏ safe-top khi user **chủ động** cho phép vùng cụ thể.
+5. Sửa UI: dùng `src/lib/ui.ts`, token `app-*`.
+6. Sửa logic quét tên: cập nhật test trong `scripts/qa-user-scenarios.mjs` nếu đổi hành vi PA-3/5B/6BC.
+7. Giải thích bằng tiếng Việt cho user; diff nhỏ, có ví dụ cụ thể Hán–Việt khi thảo luận tên riêng.
+8. Phân biệt rõ **VP / LAB / HV** khi debug — ba nguồn khác nhau.
+9. Với `SettingsTab` AI: không phá luồng layer 1→2→3→4; giữ single-active branch + safe-area Portal.
+10. Với thao tác phá hủy (`retranslate_all`): luôn giữ xác nhận 2 lớp (switch + phrase).
 
 ---
 
@@ -375,6 +388,7 @@ Các điểm **đã chốt với user** trong phiên làm việc:
 - Hai checkbox refDict tách biệt.
 - Lab header: tên Lab Dịch, 2 hàng, safe-area calc.
 - Home về màn hình gốc.
+- **UI mặc định không chèn lên status bar**; chỉ cho phép trùng vùng status bar khi user **chủ động yêu cầu** (màn/vùng cụ thể).
 
 Mọi thay đổi **đảo ngược** các điểm trên cần xác nhận user trước.
 

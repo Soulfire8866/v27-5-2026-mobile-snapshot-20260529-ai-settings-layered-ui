@@ -54,10 +54,13 @@ Tài liệu này khóa chuẩn vi mô để nâng độ hoàn thiện thị giá
 
 ## 7) Safe-area baseline (7B)
 
+- **Nguyên tắc mặc định:** Thành phần giao diện tương tác (tiêu đề, nút, text, input) **không được chèn lên status bar** hệ thống. Chrome app bắt đầu dưới status bar, có đệm safe-area.
+- **Ngoại lệ:** Chỉ khi chủ sở hữu dự án **chủ động yêu cầu** cho phép một vùng UI cụ thể trùng **vị trí và kích thước** status bar (immersive có chủ đích). Agent không tự áp dụng edge-to-edge.
 - Mọi bề mặt full-screen/modal top-chrome dùng class chuẩn:
   - `.app-chrome-safe-top`
   - `.app-chrome-safe-bottom`
-- Không hardcode top/bottom tuyệt đối cho phần chrome nếu không có lý do đặc thù.
+- Không hardcode top/bottom tuyệt đối cho phần chrome; không `!pt-0` trên class safe-top trừ khi user đã chốt ngoại lệ.
+- Tham chiếu đầy đủ: `docs/AI_AGENT_PROJECT_GUIDE.md` mục **3.2.1**.
 
 ## 8) Motion vi mô (8B)
 
